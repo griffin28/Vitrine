@@ -24,27 +24,27 @@ macro(create_find_package pkg required quiet components)
 endmacro(create_find_package)
 
 #======== Functions
-function(add_shader_target TARGET)
+# function(add_shader_target TARGET)
 
-endfunction()
+# endfunction()
 
-function(add_shaders_target target shader_files)
-    add_custom_target(${target} ALL)
-    foreach(shader_file IN LISTS shader_files)
-        get_filename_component(shader_name ${shader_file} NAME)
-        set(compiled_shader "${CMAKE_CURRENT_BINARY_DIR}/shaders/${shader_name}.spv")
-        add_custom_command(
-            OUTPUT ${compiled_shader}
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/shaders
-            COMMAND glslc ${shader_file} -o ${compiled_shader}
-            DEPENDS ${shader_file}
-            COMMENT "Compiling shader: ${shader_name}"
-            VERBATIM
-        )
-        add_custom_target(${target}_${shader_name} DEPENDS ${compiled_shader})
-        add_dependencies(${target} ${target}_${shader_name})
-    endforeach()
-endfunction()
+# function(add_shaders_target target shader_files)
+#     add_custom_target(${target} ALL)
+#     foreach(shader_file IN LISTS shader_files)
+#         get_filename_component(shader_name ${shader_file} NAME)
+#         set(compiled_shader "${CMAKE_CURRENT_BINARY_DIR}/shaders/${shader_name}.spv")
+#         add_custom_command(
+#             OUTPUT ${compiled_shader}
+#             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/shaders
+#             COMMAND glslc ${shader_file} -o ${compiled_shader}
+#             DEPENDS ${shader_file}
+#             COMMENT "Compiling shader: ${shader_name}"
+#             VERBATIM
+#         )
+#         add_custom_target(${target}_${shader_name} DEPENDS ${compiled_shader})
+#         add_dependencies(${target} ${target}_${shader_name})
+#     endforeach()
+# endfunction()
 
 function(AddValgrind target)
     find_program(VALGRIND_PATH valgrind)
