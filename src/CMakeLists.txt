@@ -6,6 +6,7 @@ set (SRCS
 
 # add_subdirectory(<sourcedir> [<binarydir>])
 add_subdirectory(renderer)
+add_subdirectory(ui)
 
 add_executable(${CMAKE_PROJECT_NAME} ${SRCS})
 
@@ -16,6 +17,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
         Qt6::Widgets
         Vulkan::cppm
         renderer
+        ui
         compiler_props
 )
 

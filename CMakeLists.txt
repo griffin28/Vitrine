@@ -9,7 +9,6 @@ if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
     message(FATAL_ERROR "In-source builds are not allowed.")
 endif()
 
-# set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 # Resource Compiler

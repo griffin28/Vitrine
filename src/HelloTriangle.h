@@ -7,19 +7,16 @@ import vulkan_hpp;
 #endif
 #include <QVulkanWindow>
 
-namespace myvulkan {
-
-class HelloTriangleApplication : public QVulkanWindow {
+namespace myvulkan 
+{
+class HelloTriangleApplication : public QVulkanWindow 
+{
 public:
-    HelloTriangleApplication() { HelloTriangleApplication(800, 600); }
-
-    /// @brief  Constructor with custom width and height
-    /// @param width width of the window
-    /// @param height height of the window
-    HelloTriangleApplication(const uint32_t width, const uint32_t height);
+    /// @brief Constructor
+    HelloTriangleApplication() = default;
 
     /// @brief  Destructor
-    ~HelloTriangleApplication() override = default;
+    ~HelloTriangleApplication() = default;
 
     /// @see QVulkanWindow::createRenderer
     QVulkanWindowRenderer* createRenderer() override;
