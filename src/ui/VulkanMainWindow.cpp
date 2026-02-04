@@ -6,6 +6,8 @@
 #include <QIcon>
 #include <QApplication>
 #include <QMessageBox>
+#include <QTextEdit>
+#include <QVBoxLayout>
 
 namespace myvulkan 
 {
@@ -32,6 +34,9 @@ void VulkanMainWindow::createActions()
 
     m_aboutQtAction = new QAction(tr("About &Qt"), this);
     connect(m_aboutQtAction, &QAction::triggered, qApp, &QApplication::aboutQt);
+
+    m_vulkanPropertiesAction = new QAction(tr("Vulkan &Properties"), this);
+    connect(m_vulkanPropertiesAction, &QAction::triggered, this, &VulkanMainWindow::showVulkanPropertiesDialog);
 }
 
 //----------------------------------------------------------------------------------
@@ -48,6 +53,7 @@ void VulkanMainWindow::createHelpMenu()
     m_helpMenu = this->menuBar()->addMenu(tr("&Help"));
     m_helpMenu->addAction(m_aboutAction);
     m_helpMenu->addAction(m_aboutQtAction);
+    m_helpMenu->addAction(m_vulkanPropertiesAction);
 }
 
 //----------------------------------------------------------------------------------
@@ -58,5 +64,63 @@ void VulkanMainWindow::showAboutDialog()
                        tr("<h2>Vulkan Sandbox</h2>"
                           "A Vulkan application using Qt and C++20.<br>"
                           "<p>Copyright &copy; 2026 Dr. Kevin S. Griffin kevin.s.griffin@gmail.com"));
+}
+
+//----------------------------------------------------------------------------------
+void VulkanMainWindow::showVulkanPropertiesDialog() 
+{
+    if(m_vulkanPropertiesDialog != nullptr)
+    {
+        m_vulkanPropertiesDialog->show();
+    }
+    else 
+    {
+        if (!m_vulkanWindow) {
+            QMessageBox::warning(this, tr("Vulkan Properties"), tr("Vulkan window is not available."));
+            return;
+        }
+
+        auto instance = m_vulkanWindow->vulkanInstance();
+
+        if (!instance || !instance->isValid()) {
+            QMessageBox::warning(this, tr("Vulkan Properties"), tr("Vulkan instance is not valid."));
+            return;
+        }
+
+        QStringList vulkanProperties;
+        vulkanProperties << QString(tr("<b>Vulkan API Version:</b> %1")).arg(instance->supportedApiVersion().toString());
+
+        auto extensions = instance->supportedExtensions();
+        vulkanProperties << QString(tr("<br><b>Supported Extensions:</b>"));
+        vulkanProperties << QString("<ul>");
+        for (const auto& ext : extensions) {
+            vulkanProperties << QString("<li>%1</li> ").arg(QString::fromUtf8(ext.name));
+        }
+        vulkanProperties << QString("</ul>");
+
+        // Create dialog box
+        m_vulkanPropertiesDialog = new QMessageBox(this);
+        m_vulkanPropertiesDialog->setWindowTitle(tr("Vulkan Properties"));
+        m_vulkanPropertiesDialog->setIcon(QMessageBox::Information);
+        m_vulkanPropertiesDialog->setStandardButtons(QMessageBox::Ok);
+
+        // create scrollabe view for read-only text
+        auto* viewer = new QTextEdit(m_vulkanPropertiesDialog);
+        viewer->setReadOnly(true);
+        viewer->setHtml(vulkanProperties.join("\n"));
+        viewer->setMinimumSize(400, 400);
+        viewer->setLineWrapMode(QTextEdit::NoWrap);
+
+        auto* grid = qobject_cast<QGridLayout*>(m_vulkanPropertiesDialog->layout());
+        if (grid) {
+            const int row = 0;
+            const int col = 0;
+            const int rowSpan = 1;
+            const int colSpan = grid->columnCount() > 0 ? grid->columnCount() : 2;
+            grid->addWidget(viewer, row, col, rowSpan, colSpan);
+        }
+
+        m_vulkanPropertiesDialog->show();
+    }
 }
 } // namespace myvulkan

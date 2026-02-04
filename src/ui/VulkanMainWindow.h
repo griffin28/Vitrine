@@ -5,6 +5,7 @@
 
 class QMenu;
 class QAction;
+class QMessageBox;
 
 namespace myvulkan 
 {
@@ -18,6 +19,7 @@ public:
 
 private slots:
     void showAboutDialog();
+    void showVulkanPropertiesDialog();
 
 private:
     void createActions();
@@ -32,5 +34,8 @@ private:
     QAction* m_closeAction = nullptr;
     QAction* m_aboutAction = nullptr;
     QAction* m_aboutQtAction = nullptr;
+    QAction* m_vulkanPropertiesAction = nullptr;
+
+    QMessageBox* m_vulkanPropertiesDialog = nullptr;
 };
 }
