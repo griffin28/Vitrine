@@ -33,7 +33,7 @@ find_package(tinygltf REQUIRED)
 find_package(KTX REQUIRED)
 
 # Options
-option(BUILD_TESTS "Build unit tests" OFF)
+option(BUILD_APP_TESTS "Build unit tests" OFF)
 
 # Setup Vulkan C++ module if enabled
 if(ENABLE_CPP20_MODULE)
@@ -92,7 +92,7 @@ set(STB_INCLUDEDIR ${stb_INCLUDE_DIRS})
 add_subdirectory(src bin)
 
 # Tests 
-if(BUILD_TESTS)
+if(BUILD_APP_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
