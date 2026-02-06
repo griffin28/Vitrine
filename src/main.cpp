@@ -30,12 +30,23 @@ int main(int argc, char *argv[])
 {
     // Allow style mode to be set via command line arguments
     bool useDarkMode = true;
+    int gpuIndex = -1;
+    
     for (int i = 1; i < argc; ++i) {
         QString arg = QString::fromLocal8Bit(argv[i]).toLower();
         if (arg == "--light") {
             useDarkMode = false;
         } else if (arg == "--dark") {
             useDarkMode = true;
+        } else if (arg == "--gpu") {
+            bool ok = false;
+            QString indexStr = (i + 1 < argc) ? QString::fromLocal8Bit(argv[++i]) : QString();
+            int index = indexStr.toInt(&ok);
+            if (ok) {
+                gpuIndex = index;
+            } else {
+                std::cerr << "Invalid GPU index provided after --gpu argument." << std::endl;
+            }
         }
     }
     
@@ -76,29 +87,30 @@ int main(int argc, char *argv[])
 
     // Create the Vulkan window
     myvulkan::HelloTriangleApplication triangleApp;
-
     triangleApp.setVulkanInstance(&vulkanInstance);
-    const int deviceIndex = AppUtils::pickPhysicalDevice(triangleApp);
-    triangleApp.setPhysicalDeviceIndex(deviceIndex);
+
+    auto availableDevices = triangleApp.availablePhysicalDevices();
+
+    if(gpuIndex >= 0 && gpuIndex < availableDevices.size()) 
+    {
+        triangleApp.setPhysicalDeviceIndex(gpuIndex);
+    } 
+    else 
+    {
+        if(gpuIndex >= availableDevices.size()) 
+        {
+            std::cerr << "Warning: GPU index " << gpuIndex << " is out of range. Falling back to automatic device selection." << std::endl;
+        }
+
+        const int selectedGpuIndex = AppUtils::pickPhysicalDevice(availableDevices);
+        triangleApp.setPhysicalDeviceIndex(selectedGpuIndex);
+    }
 
     // Create and show the main application window
     myvulkan::VulkanMainWindow mainWindow(nullptr, &triangleApp);
     mainWindow.resize(WINDOW_WIDTH, WINDOW_HEIGHT);
-
-    auto availableDevices = triangleApp.availablePhysicalDevices();
-    mainWindow.appendLogMessage(QString("Selected Vulkan Physical Device: %1").arg(availableDevices[deviceIndex].deviceName));
-    mainWindow.appendLogMessage(QString("Vulkan API Version: %1.%2.%3")
-        .arg(VK_VERSION_MAJOR(availableDevices[deviceIndex].apiVersion))
-        .arg(VK_VERSION_MINOR(availableDevices[deviceIndex].apiVersion))
-        .arg(VK_VERSION_PATCH(availableDevices[deviceIndex].apiVersion)));
-    mainWindow.appendLogMessage(QString("Driver Version: %1.%2.%3")
-        .arg(VK_VERSION_MAJOR(availableDevices[deviceIndex].driverVersion))
-        .arg(VK_VERSION_MINOR(availableDevices[deviceIndex].driverVersion))
-        .arg(VK_VERSION_PATCH(availableDevices[deviceIndex].driverVersion)));
-    mainWindow.appendLogMessage(QString("Vendor ID: %1").arg(availableDevices[deviceIndex].vendorID));
-    mainWindow.appendLogMessage(QString("Device ID: %1").arg(availableDevices[deviceIndex].deviceID));
-
     mainWindow.show();
+
     return app.exec();
 }
 

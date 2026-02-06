@@ -1,4 +1,5 @@
 #include "VulkanMainWindow.h"
+#include "AppUtils.h"
 
 #include <QMenu>
 #include <QMenuBar>
@@ -8,6 +9,12 @@
 #include <QMessageBox>
 #include <QTextEdit>
 #include <QVBoxLayout>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QComboBox>
+#include <QFormLayout>
+#include <QLabel>
+#include <QVector>
 
 namespace myvulkan 
 {
@@ -17,10 +24,13 @@ VulkanMainWindow::VulkanMainWindow(QWidget *parent, QVulkanWindow *vulkanWindow)
 {
     this->setWindowTitle("Vulkan Sandbox");
     this->createCentralWidget();
-       
+
     this->createActions();
     this->createFileMenu();
+    this->createEditMenu();
     this->createHelpMenu();
+
+    this->logSelectedGpuInfo();
 }
 
 //----------------------------------------------------------------------------------
@@ -68,6 +78,11 @@ void VulkanMainWindow::createActions()
 
     m_vulkanPropertiesAction = new QAction(tr("Vulkan &Properties"), this);
     connect(m_vulkanPropertiesAction, &QAction::triggered, this, &VulkanMainWindow::showVulkanPropertiesDialog);
+    
+    // Edit menu actions
+    m_preferencesAction = new QAction(tr("&Preferences..."), this);
+    // m_preferencesAction = new QAction(QIcon(":/images/preferences.png"), tr("&Preferences..."), this);
+    connect(m_preferencesAction, &QAction::triggered, this, &VulkanMainWindow::showPreferencesDialog);
 }
 
 //----------------------------------------------------------------------------------
@@ -85,6 +100,13 @@ void VulkanMainWindow::createHelpMenu()
     m_helpMenu->addAction(m_aboutAction);
     m_helpMenu->addAction(m_aboutQtAction);
     m_helpMenu->addAction(m_vulkanPropertiesAction);
+}
+
+//----------------------------------------------------------------------------------
+void VulkanMainWindow::createEditMenu() 
+{
+    m_editMenu = this->menuBar()->addMenu(tr("&Edit"));
+    m_editMenu->addAction(m_preferencesAction);
 }
 
 //----------------------------------------------------------------------------------
@@ -153,5 +175,80 @@ void VulkanMainWindow::showVulkanPropertiesDialog()
 
         m_vulkanPropertiesDialog->show();
     }
+}
+
+//----------------------------------------------------------------------------------
+void VulkanMainWindow::showPreferencesDialog()
+{
+    if (!m_vulkanWindow) {
+        QMessageBox::warning(this, tr("Preferences"), tr("Vulkan window is not available."));
+        return;
+    }
+
+    if (!m_preferencesDialog) 
+    {
+        m_preferencesDialog = new QDialog(this);
+        m_preferencesDialog->setWindowTitle(tr("Preferences"));
+        m_preferencesDialog->setModal(true);
+
+        auto* mainLayout = new QVBoxLayout(m_preferencesDialog);
+        auto* formLayout = new QFormLayout();
+
+        auto* gpuComboBox = new QComboBox(m_preferencesDialog);
+        gpuComboBox->setMinimumWidth(320);
+
+        auto availableDevices = m_vulkanWindow->availablePhysicalDevices();
+        for(int i=0; i < availableDevices.size(); ++i) {
+            const auto& device = availableDevices[i];
+            const QString name = QString::fromUtf8(device.deviceName);
+            gpuComboBox->addItem(name, i);
+        }
+        // gpuComboBox->setCurrentIndex(m_selectedGpuIndex);
+        formLayout->addRow(new QLabel(tr("Preferred GPU:"), m_preferencesDialog), gpuComboBox);
+
+        mainLayout->addLayout(formLayout);
+
+        auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+                                               Qt::Horizontal,
+                                               m_preferencesDialog);
+        connect(buttonBox, &QDialogButtonBox::accepted, m_preferencesDialog, &QDialog::accept);
+        connect(buttonBox, &QDialogButtonBox::rejected, m_preferencesDialog, &QDialog::reject);
+        mainLayout->addWidget(buttonBox);
+
+        connect(m_preferencesDialog, &QDialog::accepted, this, [this, gpuComboBox]() {
+            if (!gpuComboBox) {
+                return;
+            }
+
+            // m_selectedGpuIndex = gpuComboBox->currentIndex();
+            // m_vulkanWindow->setPhysicalDeviceIndex(m_selectedGpuIndex);
+            // this->logSelectedGpuInfo();
+        });
+    }
+
+    m_preferencesDialog->show();
+}
+
+//----------------------------------------------------------------------------------
+void VulkanMainWindow::logSelectedGpuInfo() 
+{
+    const auto& device = m_vulkanWindow->physicalDeviceProperties();
+    if(device == nullptr) 
+    {
+        appendErrorLogMessage("Failed to retrieve physical device properties.");
+        return;
+    }
+
+    appendInfoLogMessage(QString("Selected Vulkan Physical Device: %1").arg(device->deviceName));
+    appendInfoLogMessage(QString("Vulkan API Version: %1.%2.%3")
+            .arg(VK_VERSION_MAJOR(device->apiVersion))
+            .arg(VK_VERSION_MINOR(device->apiVersion))
+            .arg(VK_VERSION_PATCH(device->apiVersion)));
+    appendInfoLogMessage(QString("Driver Version: %1.%2.%3")
+            .arg(VK_VERSION_MAJOR(device->driverVersion))
+            .arg(VK_VERSION_MINOR(device->driverVersion))
+            .arg(VK_VERSION_PATCH(device->driverVersion)));
+    appendInfoLogMessage(QString("Vendor ID: %1").arg(device->vendorID));
+    appendInfoLogMessage(QString("Device ID: %1").arg(device->deviceID));
 }
 } // namespace myvulkan

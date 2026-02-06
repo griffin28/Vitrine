@@ -3,7 +3,6 @@
 #include <QPalette>
 #include <QApplication>
 #include <QStyleFactory>
-#include <QVulkanWindow>
 #include <QFile>
 
 namespace myvulkan 
@@ -12,13 +11,11 @@ class AppUtils
 {
 public:
     /// @brief Pick a suitable Vulkan physical device, preferring NVIDIA GPUs if available.
-    /// @param window the QVulkanWindow instance to query available physical devices from
+    /// @param availableDevices a list of available Vulkan physical devices and their properties
     /// @return device index of the selected physical device
     /// @throws std::runtime_error if no suitable device is found
-    static inline int pickPhysicalDevice(QVulkanWindow &window) 
+    static inline int pickPhysicalDevice(const QList<VkPhysicalDeviceProperties> &availableDevices) 
     {
-        auto availableDevices = window.availablePhysicalDevices();
-
         if (availableDevices.isEmpty()) {
             throw std::runtime_error("No Vulkan-compatible physical devices found.");
         }
