@@ -1,4 +1,6 @@
 set(UI_SRCS
+    CollapsibleLogWidget.h
+    CollapsibleLogWidget.cpp
     VulkanMainWindow.h
     VulkanMainWindow.cpp
 )

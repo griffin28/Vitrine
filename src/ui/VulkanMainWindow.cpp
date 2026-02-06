@@ -15,11 +15,42 @@ namespace myvulkan
 VulkanMainWindow::VulkanMainWindow(QWidget *parent, QVulkanWindow *vulkanWindow) 
     : QMainWindow(parent), m_vulkanWindow(vulkanWindow) 
 {
-    this->setCentralWidget(QWidget::createWindowContainer(m_vulkanWindow, this));
-    this->setWindowTitle("Vulkan Sandbox");   
+    this->setWindowTitle("Vulkan Sandbox");
+    this->createCentralWidget();
+       
     this->createActions();
     this->createFileMenu();
     this->createHelpMenu();
+}
+
+//----------------------------------------------------------------------------------
+void VulkanMainWindow::appendLogMessage(const QString& message, LogLevel level)
+{
+    if (!m_logWidget) {
+        return;
+    }
+
+    m_logWidget->appendLogMessage(message, level);
+}
+
+//----------------------------------------------------------------------------------
+void VulkanMainWindow::createCentralWidget()
+{
+    // Vulkan rendering area
+    m_centralWidget = new QWidget(this);
+    m_mainLayout = new QVBoxLayout(m_centralWidget);
+    m_mainLayout->setContentsMargins(0, 0, 0, 0);
+    m_mainLayout->setSpacing(0);
+
+    auto* vulkanContainer = QWidget::createWindowContainer(m_vulkanWindow, m_centralWidget);
+    vulkanContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    m_mainLayout->addWidget(vulkanContainer, 1);
+
+    // Log panel
+    this->m_logWidget = new CollapsibleLogWidget("Log", 200, m_centralWidget);
+    m_mainLayout->addWidget(m_logWidget, 0);
+
+    this->setCentralWidget(m_centralWidget);
 }
 
 //----------------------------------------------------------------------------------

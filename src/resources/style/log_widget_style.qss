@@ -1,0 +1,11 @@
+QWidget#CollapsibleLogWidget QTextEdit#logText {
+    background-color: #FFFFFF;
+    border: none;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12px;
+}
+
+QWidget#CollapsibleLogWidget QMenu::item:selected {
+    background-color: #3874f2;
+    color: white;
+}

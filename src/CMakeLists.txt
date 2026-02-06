@@ -1,7 +1,10 @@
 set (SRCS
     main.cpp
     HelloTriangle.cpp
+    AppUtils.h
     resources/resources.qrc
+    resources/style/qdarkstyle/dark/darkstyle.qrc
+    resources/style/qdarkstyle/light/lightstyle.qrc
 )
 
 # add_subdirectory(<sourcedir> [<binarydir>])

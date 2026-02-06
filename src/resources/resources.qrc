@@ -4,5 +4,6 @@
     <file alias="images/dot.png">images/dot-mini.png</file>
     <file alias="images/sphere.png">images/earth-wireframe-mini.png</file>
     <file alias="images/cuboid.png">images/box-3d.png</file>
+    <file alias="log_widget_style.qss">style/log_widget_style.qss</file>
 </qresource>
 </RCC>
