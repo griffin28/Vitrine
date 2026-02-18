@@ -13,7 +13,7 @@ class HelloTriangleApplication : public QVulkanWindow
 {
 public:
     /// @brief Constructor
-    HelloTriangleApplication() = default;
+    explicit HelloTriangleApplication(QWindow* parent = nullptr) : QVulkanWindow(parent) {}
 
     /// @brief  Destructor
     ~HelloTriangleApplication() = default;

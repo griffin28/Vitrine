@@ -38,7 +38,7 @@ public:
     /// @brief appends an error log message to the log panel.
     /// @param message the log message to append.
     void appendErrorLogMessage(const QString& message) { appendLogMessage(message, LogLevel::Error); }
-
+    
 private slots:
     void showAboutDialog();
     void showVulkanPropertiesDialog();

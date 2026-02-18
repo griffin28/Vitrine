@@ -30,6 +30,12 @@ VulkanMainWindow::VulkanMainWindow(QWidget *parent, QVulkanWindow *vulkanWindow)
     this->createEditMenu();
     this->createHelpMenu();
 
+    auto logiclDevice = m_vulkanWindow->device();
+    auto graphicsQueue = m_vulkanWindow->graphicsQueue();
+    // auto graphicsCommandPool = m_vulkanWindow->graphicsCommandPool();
+
+    auto surface = QVulkanInstance::surfaceForWindow(m_vulkanWindow);
+
     this->logSelectedGpuInfo();
 }
 
@@ -233,6 +239,7 @@ void VulkanMainWindow::showPreferencesDialog()
 void VulkanMainWindow::logSelectedGpuInfo() 
 {
     const auto& device = m_vulkanWindow->physicalDeviceProperties();
+    
     if(device == nullptr) 
     {
         appendErrorLogMessage("Failed to retrieve physical device properties.");

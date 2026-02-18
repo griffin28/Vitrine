@@ -90,20 +90,26 @@ int main(int argc, char *argv[])
     triangleApp.setVulkanInstance(&vulkanInstance);
 
     auto availableDevices = triangleApp.availablePhysicalDevices();
+    if(availableDevices.isEmpty()) 
+    {
+        throw std::runtime_error("No Vulkan-compatible physical devices found.");
+    }
 
-    if(gpuIndex >= 0 && gpuIndex < availableDevices.size()) 
+    if (gpuIndex >= 0 && gpuIndex < availableDevices.size()) 
     {
         triangleApp.setPhysicalDeviceIndex(gpuIndex);
-    } 
+    }
     else 
     {
         if(gpuIndex >= availableDevices.size()) 
         {
-            std::cerr << "Warning: GPU index " << gpuIndex << " is out of range. Falling back to automatic device selection." << std::endl;
+            std::cerr << "Warning: Specified GPU index " << gpuIndex 
+                      << " is out of range. There are only " << availableDevices.size() 
+                      << " available devices. Falling back to automatic selection." << std::endl;
         }
-
-        const int selectedGpuIndex = AppUtils::pickPhysicalDevice(availableDevices);
-        triangleApp.setPhysicalDeviceIndex(selectedGpuIndex);
+        
+        int selectedDeviceIndex = AppUtils::pickPhysicalDevice(availableDevices);
+        triangleApp.setPhysicalDeviceIndex(selectedDeviceIndex);
     }
 
     // Create and show the main application window

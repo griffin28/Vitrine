@@ -10,8 +10,11 @@ set (SRCS
 # add_subdirectory(<sourcedir> [<binarydir>])
 add_subdirectory(renderer)
 add_subdirectory(ui)
+add_subdirectory(shaders)
 
 add_executable(${CMAKE_PROJECT_NAME} ${SRCS})
+
+add_dependencies(${CMAKE_PROJECT_NAME} slang_shaders)
 
 target_link_libraries(${CMAKE_PROJECT_NAME}
     PRIVATE
