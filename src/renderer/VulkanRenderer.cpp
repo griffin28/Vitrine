@@ -1,6 +1,7 @@
 #include "VulkanRenderer.h"
 
 #include <QVulkanDeviceFunctions>
+#include <vulkan/vulkan.h>
 
 #include <QCoreApplication>
 #include <QDir>
@@ -31,14 +32,14 @@ void VulkanRenderer::initResources()
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .stage = VK_SHADER_STAGE_VERTEX_BIT,
         .module = vertShaderModule,
-        .pName = "vertMain"
+        .pName = "main"
     };
 
     VkPipelineShaderStageCreateInfo fragmentShaderStageInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
         .module = fragShaderModule,
-        .pName = "fragMain"
+        .pName = "main"
     };
 
     VkPipelineShaderStageCreateInfo shaderStages[] = { vertexShaderStageInfo, fragmentShaderStageInfo };
@@ -48,6 +49,7 @@ void VulkanRenderer::initResources()
 void VulkanRenderer::initSwapChainResources() {
     // Initialize swapchain-dependent resources here if needed.
     // m_window->physicalDevice()->getSurfaceCapabilitiesKHR(m_window->surface(), &m_surfaceCapabilities);
+    // auto surfaceFormats = m_window->physicalDevice()->getSurfaceFormatsKHR(QVulkanInstance::surfaceForWindow(m_window));
 }
 
 //----------------------------------------------------------------------------------
