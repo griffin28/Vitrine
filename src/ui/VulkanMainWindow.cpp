@@ -246,7 +246,7 @@ void VulkanMainWindow::logSelectedGpuInfo()
         return;
     }
 
-    appendInfoLogMessage(QString("Selected Vulkan Physical Device: %1").arg(device->deviceName));
+    appendInfoLogMessage(QString("%1").arg(device->deviceName));
     appendInfoLogMessage(QString("Vulkan API Version: %1.%2.%3")
             .arg(VK_VERSION_MAJOR(device->apiVersion))
             .arg(VK_VERSION_MINOR(device->apiVersion))

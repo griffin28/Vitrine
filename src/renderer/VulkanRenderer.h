@@ -4,6 +4,7 @@
 
 #include <QString>
 #include <vulkan/vulkan.h>
+// #include <vulkan/vulkan_raii.hpp>
 
 namespace myvulkan {
 
@@ -33,9 +34,13 @@ public:
     /// @see QVulkanWindowRenderer::startNextFrame
     void startNextFrame() override;
 
+    // Shader count constant
+    static constexpr int ShaderCount = 2;
+
 private:
     QVulkanWindow* m_window = VK_NULL_HANDLE;
-    QVulkanDeviceFunctions* m_devFuncs = VK_NULL_HANDLE;
+    VkPipelineLayout* m_pipelineLayout = VK_NULL_HANDLE;
+    VkPipeline* m_graphicsPipeline = VK_NULL_HANDLE;
     
     VkShaderModule createShaderModule(const QString& filePath);
 };
