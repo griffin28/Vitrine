@@ -1,6 +1,8 @@
 #include "HelloTriangle.h"
 #include "VulkanRenderer.h"
 
+#include <QVulkanDeviceFunctions>
+
 namespace myvulkan 
 {
 //----------------------------------------------------------------------------------

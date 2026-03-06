@@ -30,11 +30,11 @@ VulkanMainWindow::VulkanMainWindow(QWidget *parent, QVulkanWindow *vulkanWindow)
     this->createEditMenu();
     this->createHelpMenu();
 
-    auto logiclDevice = m_vulkanWindow->device();
-    auto graphicsQueue = m_vulkanWindow->graphicsQueue();
+    // auto logiclDevice = m_vulkanWindow->device();
+    // auto graphicsQueue = m_vulkanWindow->graphicsQueue();
     // auto graphicsCommandPool = m_vulkanWindow->graphicsCommandPool();
 
-    auto surface = QVulkanInstance::surfaceForWindow(m_vulkanWindow);
+    // auto surface = QVulkanInstance::surfaceForWindow(m_vulkanWindow);
 
     this->logSelectedGpuInfo();
 }

@@ -7,24 +7,24 @@
 #include <QFileInfo>
 #include <QDebug>
 #include <QStringList>
+#include <cstring>
 #include <iostream>
+#include <vector>
 
 namespace myvulkan {
 
 //----------------------------------------------------------------------------------
 void VulkanRenderer::initResources() 
 {
-    auto instance = m_window->vulkanInstance();
-    auto device = m_window->device();
-    auto devFuncs = instance->deviceFunctions(device);
+    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
 
     // Create shader module
     const QString appDir = qApp->applicationDirPath(); 
     const QString fragPath = QDir(appDir).filePath("shaders/frag.spv");
     const QString vertPath = QDir(appDir).filePath("shaders/vert.spv");
 
-    auto vertShaderModule = createShaderModule(vertPath);
-    auto fragShaderModule = createShaderModule(fragPath);
+    auto vertShaderModule = this->createShaderModule(vertPath);
+    auto fragShaderModule = this->createShaderModule(fragPath);
 
     // Shader stage creation
     VkPipelineShaderStageCreateInfo vertexShaderStageInfo{
@@ -106,18 +106,18 @@ void VulkanRenderer::initResources()
     };
 
     // Depth and Stencil Testing
-    // VkPipelineDepthStencilStateCreateInfo depthStencil{
-    //     .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-    //     .depthTestEnable = VK_TRUE,
-    //     .depthWriteEnable = VK_TRUE,
-    //     .depthCompareOp = VK_COMPARE_OP_LESS,
-    //     .depthBoundsTestEnable = VK_FALSE,
-    //     .stencilTestEnable = VK_FALSE,
-    //     .front = {},
-    //     .back = {},
-    //     .minDepthBounds = 0.0f,
-    //     .maxDepthBounds = 1.0f
-    // };
+    VkPipelineDepthStencilStateCreateInfo depthStencil{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable = VK_FALSE,
+        .depthWriteEnable = VK_FALSE,
+        .depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL,
+        .depthBoundsTestEnable = VK_FALSE,
+        .stencilTestEnable = VK_FALSE,
+        .front = {},
+        .back = {},
+        .minDepthBounds = 0.0f,
+        .maxDepthBounds = 1.0f
+    };
 
     // Color Blending
     VkPipelineColorBlendAttachmentState colorBlendAttachment{
@@ -143,32 +143,19 @@ void VulkanRenderer::initResources()
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = 0,
-        .pSetLayouts = nullptr,
-        .pushConstantRangeCount = 0,
-        .pPushConstantRanges = nullptr
+        .pushConstantRangeCount = 0
     };
 
     m_pipelineLayout = new VkPipelineLayout;
-    VkResult result = devFuncs->vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, m_pipelineLayout);
+    VkResult result = devFuncs->vkCreatePipelineLayout(m_window->device(), &pipelineLayoutInfo, nullptr, m_pipelineLayout);
     if (result != VK_SUCCESS) 
     {
         qWarning() << "Failed to create pipeline layout, VkResult:" << result;
         throw std::runtime_error("Failed to create pipeline layout");
     }
 
-    // Pipeline Rendering
-    VkFormat colorFormat = m_window->colorFormat();
-    VkPipelineRenderingCreateInfo pipelineRenderingInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
-        .colorAttachmentCount = 1,
-        .pColorAttachmentFormats = &colorFormat,
-        .depthAttachmentFormat = m_window->depthStencilFormat(),
-        .stencilAttachmentFormat = VK_FORMAT_UNDEFINED
-    };
-
     VkGraphicsPipelineCreateInfo graphicsPipelineInfo{
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .pNext = &pipelineRenderingInfo,
         .stageCount = 2,
         .pStages = shaderStages,
         .pVertexInputState = &vertexInputInfo,
@@ -176,23 +163,50 @@ void VulkanRenderer::initResources()
         .pViewportState = &viewportStateCreateInfo,
         .pRasterizationState = &rasterizer,
         .pMultisampleState = &multisampling,
-        .pDepthStencilState = nullptr, // Optional
+        .pDepthStencilState = &depthStencil,
         .pColorBlendState = &colorBlending,
         .pDynamicState = &dynamicStateCreateInfo, // Optional
         .layout = *m_pipelineLayout,
-        .renderPass = VK_NULL_HANDLE, // Using dynamic rendering
+        .renderPass = m_window->defaultRenderPass(),
         .subpass = 0,
         .basePipelineHandle = VK_NULL_HANDLE, // Optional
         .basePipelineIndex = -1 // Optional
     };
 
     m_graphicsPipeline = new VkPipeline;
-    result = devFuncs->vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &graphicsPipelineInfo, nullptr, m_graphicsPipeline);
+    result = devFuncs->vkCreateGraphicsPipelines(m_window->device(), VK_NULL_HANDLE, 1, &graphicsPipelineInfo, nullptr, m_graphicsPipeline);
     if (result != VK_SUCCESS) 
     {
         qWarning() << "Failed to create graphics pipeline, VkResult:" << result;
         throw std::runtime_error("Failed to create graphics pipeline");
     }
+
+    // Delete shader modules
+    devFuncs->vkDestroyShaderModule(m_window->device(), vertShaderModule, nullptr);
+    devFuncs->vkDestroyShaderModule(m_window->device(), fragShaderModule, nullptr);
+}
+
+//----------------------------------------------------------------------------------
+void VulkanRenderer::releaseResources() 
+{
+    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
+
+    // Graphics Pipeline
+    if(m_graphicsPipeline) 
+    {
+        devFuncs->vkDestroyPipeline(m_window->device(), *m_graphicsPipeline, nullptr);
+        delete m_graphicsPipeline;
+        m_graphicsPipeline = nullptr;
+    }
+
+    // Pipeline Layout
+    if(m_pipelineLayout) 
+    {
+        devFuncs->vkDestroyPipelineLayout(m_window->device(), *m_pipelineLayout, nullptr);
+        delete m_pipelineLayout;
+        m_pipelineLayout = nullptr;
+    }
+
 }
 
 //----------------------------------------------------------------------------------
@@ -209,154 +223,138 @@ void VulkanRenderer::initSwapChainResources()
 
     // Image Count
     // std::cout << "Image Count: " << m_window->swapChainImageCount() << std::endl;
-
-    // Initialize swapchain-dependent resources here if needed.
-    // auto instance = m_window->vulkanInstance();
-    // auto physicalDevice = m_window->physicalDevice();
-    // auto surface = QVulkanInstance::surfaceForWindow(m_window);
-    
-    // // Basic Surface Capabilities
-    // auto vkGetPhysicalDeviceSurfaceCapabilitiesKHR = 
-    //     reinterpret_cast<PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR>(
-    //         instance->getInstanceProcAddr("vkGetPhysicalDeviceSurfaceCapabilitiesKHR"));
-    
-    // if (!vkGetPhysicalDeviceSurfaceCapabilitiesKHR) {
-    //     qWarning() << "Failed to load vkGetPhysicalDeviceSurfaceCapabilitiesKHR";
-    //     return;
-    // }
-
-    // VkSurfaceCapabilitiesKHR surfaceCapabilities;
-    // VkResult result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCapabilities);
-    
-    // if (result != VK_SUCCESS) {
-    //     qWarning() << "Failed to get surface capabilities, VkResult:" << result;
-    //     return;
-    // }
-
-    // Print surface capabilities
-    // std::cout << "Surface Capabilities:" << std::endl;
-    // std::cout << "  Min Image Count: " << surfaceCapabilities.minImageCount << std::endl;
-    // std::cout << "  Max Image Count: " << surfaceCapabilities.maxImageCount << std::endl;
-    // std::cout << "  Current Extent: " << surfaceCapabilities.currentExtent.width << "x" << surfaceCapabilities.currentExtent.height << std::endl;
-    // std::cout << "  Min Image Extent: " << surfaceCapabilities.minImageExtent.width << "x" << surfaceCapabilities.minImageExtent.height << std::endl;
-    // std::cout << "  Max Image Extent: " << surfaceCapabilities.maxImageExtent.width << "x" << surfaceCapabilities.maxImageExtent.height << std::endl;
-    // std::cout << "  Max Image Array Layers: " << surfaceCapabilities.maxImageArrayLayers << std::endl;
-    // std::cout << "  Supported Transforms: " << surfaceCapabilities.supportedTransforms << std::endl;
-    // std::cout << "  Current Transform: " << surfaceCapabilities.currentTransform << std::endl;
-    // std::cout << "  Supported Composite Alpha: " << surfaceCapabilities.supportedCompositeAlpha << std::endl;
-    // std::cout << "  Supported Usage Flags: " << surfaceCapabilities.supportedUsageFlags << std::endl;
-
-    // Surface Formats (pixel format, color space)
-    // auto vkGetPhysicalDeviceSurfaceFormatsKHR = 
-    //     reinterpret_cast<PFN_vkGetPhysicalDeviceSurfaceFormatsKHR>(
-    //         instance->getInstanceProcAddr("vkGetPhysicalDeviceSurfaceFormatsKHR"));
-
-    // if (!vkGetPhysicalDeviceSurfaceFormatsKHR) {
-    //     qWarning() << "Failed to load vkGetPhysicalDeviceSurfaceFormatsKHR";
-    //     return;
-    // }
-
-    // // Get the number of supported surface formats
-    // uint32_t formatCount = 0;
-    // result = vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
-    // if (result != VK_SUCCESS || formatCount == 0) {
-    //     qWarning() << "Failed to get surface format count, VkResult:" << result;
-    //     return;
-    // }
-
-    // std::vector<VkSurfaceFormatKHR> surfaceFormats(formatCount);
-    // result = vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, surfaceFormats.data());
-    // if (result != VK_SUCCESS) {
-    //     qWarning() << "Failed to get surface formats, VkResult:" << result;
-    //     return;
-    // }
-
-    // // Print supported surface formats
-    // // std::cout << "Supported Surface Formats:" << std::endl;
-    // // for (const auto& format : surfaceFormats) {
-    // //     std::cout << "  Format: " << format.format << ", Color Space: " << format.colorSpace << std::endl;
-    // // }
-
-    // // Present Modes
-    // auto vkGetPhysicalDeviceSurfacePresentModesKHR = 
-    //     reinterpret_cast<PFN_vkGetPhysicalDeviceSurfacePresentModesKHR>(
-    //         instance->getInstanceProcAddr("vkGetPhysicalDeviceSurfacePresentModesKHR"));
-
-    // if (!vkGetPhysicalDeviceSurfacePresentModesKHR) {
-    //     qWarning() << "Failed to load vkGetPhysicalDeviceSurfacePresentModesKHR";
-    //     return;
-    // }
-
-    // uint32_t presentModeCount = 0;
-    // result = vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, nullptr);
-    // if (result != VK_SUCCESS || presentModeCount == 0) {
-    //     qWarning() << "Failed to get present mode count, VkResult:" << result;
-    //     return;
-    // }
-
-    // std::vector<VkPresentModeKHR> presentModes(presentModeCount);
-    // result = vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, presentModes.data());
-    // if (result != VK_SUCCESS) {
-    //     qWarning() << "Failed to get present modes, VkResult:" << result;
-    //     return;
-    // }
-
-    // // Print supported present modes
-    // std::cout << "Supported Present Modes:" << std::endl;
-    // for (const auto& mode : presentModes) {
-    //     std::cout << "  Present Mode: " << mode << std::endl;
-    // }
-
-    // Update swap chain info
-    // VkSwapchainCreateInfoKHR swapChainInfo{
-    //     .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-    //     .surface = surface,
-    //     .minImageCount = 2,
-    //     .clipped = VK_TRUE
-    // };
-
-    // VkSwapchainKHR swapChain;
-    // auto vkCreateSwapchainKHR = 
-    //     reinterpret_cast<PFN_vkCreateSwapchainKHR>(
-    //         m_window->vulkanInstance()->getInstanceProcAddr("vkCreateSwapchainKHR"));
-    
-    // if (!vkCreateSwapchainKHR) {
-    //     qWarning() << "Failed to load vkCreateSwapchainKHR";
-    //     return;
-    // }
-
-    // result = vkCreateSwapchainKHR(m_window->device(), &swapChainInfo, nullptr, &swapChain);
-
-    // if (result != VK_SUCCESS) {
-    //     qWarning() << "Failed to create swap chain, VkResult:" << result;
-    //     return;
-    // }
 }
+
 //----------------------------------------------------------------------------------
-void VulkanRenderer::releaseSwapChainResources() {
+void VulkanRenderer::releaseSwapChainResources() 
+{
     // Release swapchain-dependent resources here if needed.
 }
 
 //----------------------------------------------------------------------------------
-void VulkanRenderer::releaseResources() 
+// Wait for the previous frame to finish
+// Acquire an image from the swap chain
+// Record a command buffer which draws the scene onto that image
+// Submit the recorded command buffer
+// Present the swap chain image
+//
+void VulkanRenderer::startNextFrame() 
 {
     auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
 
-    // Pipeline Layout
-    if(m_pipelineLayout) 
+    // QVulkanWindow performs acquire/submit/present internally after frameReady().
+    // Waiting for the graphics queue here avoids reusing present wait semaphores
+    // while they may still be pending in the presentation engine.
+    if (devFuncs->vkQueueWaitIdle(m_window->graphicsQueue()) != VK_SUCCESS)
     {
-        devFuncs->vkDestroyPipelineLayout(m_window->device(), *m_pipelineLayout, nullptr);
-        delete m_pipelineLayout;
-        m_pipelineLayout = nullptr;
+        qWarning() << "Failed to wait for graphics queue idle";
+        return;
     }
-}
 
-//----------------------------------------------------------------------------------
-void VulkanRenderer::startNextFrame() 
-{
+    this->recordCommandBuffer();
+
     // Signal that the frame is ready and schedule the next update.
     m_window->frameReady();
     m_window->requestUpdate();
+}
+
+//----------------------------------------------------------------------------------
+void VulkanRenderer::recordCommandBuffer()
+{
+    
+
+    // Setup Color Attachment
+    auto swapChainImageSize = m_window->swapChainImageSize();
+
+    VkClearValue clearValues[2];
+    clearValues[0].color = VkClearColorValue{ .float32 = {0.0f, 0.0f, 0.0f, 1.0f} };
+    clearValues[1].depthStencil = VkClearDepthStencilValue{ .depth = 1.0f, .stencil = 0 };
+    
+    VkRenderPassBeginInfo renderPassInfo = {
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass = m_window->defaultRenderPass(),
+        .framebuffer = m_window->currentFramebuffer(),
+        .renderArea = {
+            .offset = {0, 0},
+            .extent = {.width = static_cast<uint32_t>(swapChainImageSize.width()), .height = static_cast<uint32_t>(swapChainImageSize.height())}
+        },
+        .clearValueCount = 2,
+        .pClearValues = clearValues
+    };
+
+    auto commandBuffer = m_window->currentCommandBuffer();
+    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
+    devFuncs->vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    devFuncs->vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_graphicsPipeline);
+
+    VkViewport viewPort = {
+        .x = 0.0f,
+        .y = 0.0f,
+        .width = static_cast<float>(swapChainImageSize.width()),
+        .height = static_cast<float>(swapChainImageSize.height()),
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f
+    };
+    devFuncs->vkCmdSetViewport(commandBuffer, 0, 1, &viewPort);
+
+    VkRect2D scissor = {
+        .offset = {.x = 0, .y = 0},
+        .extent = {.width = static_cast<uint32_t>(swapChainImageSize.width()), .height = static_cast<uint32_t>(swapChainImageSize.height())}
+    };
+    devFuncs->vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+    // Draw
+    devFuncs->vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+
+    devFuncs->vkCmdEndRenderPass(commandBuffer);
+}
+
+//----------------------------------------------------------------------------------
+void VulkanRenderer::transitionImageLayout(VkCommandBuffer commandBuffer,
+                                           VkImageLayout oldLayout, 
+                                           VkImageLayout newLayout,
+                                           VkAccessFlags2 srcAccessMask,
+                                           VkAccessFlags2 dstAccessMask,
+                                           VkPipelineStageFlags2 srcStageMask,
+                                           VkPipelineStageFlags2 dstStageMask)
+{
+    VkImageMemoryBarrier2 barrier = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+        .srcStageMask = srcStageMask,
+        .srcAccessMask = srcAccessMask,
+        .dstStageMask = dstStageMask,
+        .dstAccessMask = dstAccessMask,
+        .oldLayout = oldLayout,
+        .newLayout = newLayout,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = m_window->swapChainImage(m_window->currentSwapChainImageIndex()),
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1
+        }
+    };
+
+    VkDependencyInfo dependencyInfo = {
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .dependencyFlags = {},
+        .imageMemoryBarrierCount = 1,
+        .pImageMemoryBarriers = &barrier
+    };
+
+    auto vkCmdPipelinBarrier2 = 
+        reinterpret_cast<PFN_vkCmdPipelineBarrier2>(m_window->vulkanInstance()->getInstanceProcAddr("vkCmdPipelineBarrier2"));
+    
+    if(!vkCmdPipelinBarrier2) 
+    {
+        qWarning() << "Failed to get function pointer for vkCmdPipelineBarrier2";
+        throw std::runtime_error("Failed to get function pointer for vkCmdPipelineBarrier2");
+    }
+
+    vkCmdPipelinBarrier2(commandBuffer, &dependencyInfo);
 }
 
 //----------------------------------------------------------------------------------
@@ -376,6 +374,23 @@ VkShaderModule VulkanRenderer::createShaderModule(const QString& filePath)
         return VK_NULL_HANDLE;
     }
 
+    if ((shaderCode.size() % 4) != 0)
+    {
+        qWarning() << "Invalid SPIR-V size (must be multiple of 4):" << shaderCode.size() << "for" << filePath;
+        return VK_NULL_HANDLE;
+    }
+
+    std::vector<uint32_t> spirv(shaderCode.size() / sizeof(uint32_t));
+    std::memcpy(spirv.data(), shaderCode.constData(), static_cast<size_t>(shaderCode.size()));
+
+    constexpr uint32_t kSpirvMagic = 0x07230203;
+    if (spirv.empty() || spirv[0] != kSpirvMagic)
+    {
+        qWarning() << "Invalid SPIR-V magic in" << filePath
+                   << "(did shader compilation emit Vulkan SPIR-V?)";
+        return VK_NULL_HANDLE;
+    }
+
     auto bytesRead = shaderCode.size();
     auto kilobytesRead = bytesRead / 1024.0;
     qInfo() << "Read" << bytesRead << "bytes (" << kilobytesRead << " KB) from shader file:" << filePath;
@@ -383,7 +398,7 @@ VkShaderModule VulkanRenderer::createShaderModule(const QString& filePath)
     VkShaderModuleCreateInfo createInfo{
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
         .codeSize = static_cast<size_t>(shaderCode.size()),
-        .pCode = reinterpret_cast<const uint32_t*>(shaderCode.constData())
+        .pCode = spirv.data()
     };
 
     VkShaderModule shaderModule;

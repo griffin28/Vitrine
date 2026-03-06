@@ -41,7 +41,15 @@ private:
     QVulkanWindow* m_window = VK_NULL_HANDLE;
     VkPipelineLayout* m_pipelineLayout = VK_NULL_HANDLE;
     VkPipeline* m_graphicsPipeline = VK_NULL_HANDLE;
-    
+
     VkShaderModule createShaderModule(const QString& filePath);
+    void recordCommandBuffer();
+    void transitionImageLayout(VkCommandBuffer commandBuffer,
+                               VkImageLayout oldLayout, 
+                               VkImageLayout newLayout,
+                               VkAccessFlags2 srcAccessMask,
+                               VkAccessFlags2 dstAccessMask,
+                               VkPipelineStageFlags2 srcStageMask,
+                               VkPipelineStageFlags2 dstStageMask);
 };
 }  // namespace myvulkan
