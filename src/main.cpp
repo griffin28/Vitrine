@@ -5,7 +5,7 @@
 #include <stdexcept>
 #include <cstdlib>
 
-#include "VulkanMainWindow.h"
+#include "AppMainWindow.h"
 #include "AppUtils.h"
 
 #ifdef NDEBUG
@@ -95,9 +95,9 @@ int main(int argc, char *argv[])
     }
 
     // Create and show the main application window
-    myvulkan::VulkanMainWindow mainWindow(&vulkanInstance, 
-                                          logMessages, 
-                                          gpuIndex);
+    myvulkan::AppMainWindow mainWindow(&vulkanInstance, 
+                                        logMessages, 
+                                        gpuIndex);
     mainWindow.resize(WINDOW_WIDTH, WINDOW_HEIGHT);
     mainWindow.show();
 

@@ -1,4 +1,4 @@
-#include "HelloTriangle.h"
+#include "VulkanWindow.h"
 #include "VulkanRenderer.h"
 
 #include <QVulkanDeviceFunctions>
@@ -6,7 +6,7 @@
 namespace myvulkan 
 {
 //----------------------------------------------------------------------------------
-QVulkanWindowRenderer* HelloTriangleApplication::createRenderer() {
+QVulkanWindowRenderer* VulkanWindow::createRenderer() {
     return new VulkanRenderer(this);
 }
-}
+}  // namespace myvulkan

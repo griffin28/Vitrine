@@ -14,23 +14,23 @@ class QComboBox;
 
 namespace myvulkan 
 {
-class VulkanMainWindow : public QMainWindow 
+class AppMainWindow : public QMainWindow 
 {
     Q_OBJECT
 
 public:
-    /// @brief Constructor for VulkanMainWindow.
+    /// @brief Constructor for AppMainWindow.
     /// @param vulkanInstance the Vulkan instance to use, default is nullptr (will create a new instance).
     /// @param vulkanInstanceLogMessage log messages from the Vulkan instance creation, default is an empty string.
     /// @param gpuIndex the index of the GPU to use, default is -1 (automatic selection).
     /// @param parent the parent widget, default is nullptr.
-    VulkanMainWindow(QVulkanInstance* vulkanInstance,
+    AppMainWindow(QVulkanInstance* vulkanInstance,
                      QString vulkanInstanceLogMessage,
                      int gpuIndex = -1,
                      QWidget *parent = nullptr);
     
-    /// @brief Destructor for VulkanMainWindow.
-    ~VulkanMainWindow() = default;
+    /// @brief Destructor for AppMainWindow.
+    ~AppMainWindow() = default;
 
     /// @brief appends an informational log message to the log panel.
     /// @param message the log message to append.
@@ -51,7 +51,6 @@ private slots:
 
 private:
     QString createVulkanWindow();
-
     void createCentralWidget();
     void createActions();
     void createFileMenu();

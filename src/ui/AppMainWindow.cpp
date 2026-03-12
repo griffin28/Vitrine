@@ -1,6 +1,6 @@
-#include "VulkanMainWindow.h"
+#include "AppMainWindow.h"
 #include "AppUtils.h"
-#include "HelloTriangle.h"
+#include "VulkanWindow.h"
 
 #include <QMenu>
 #include <QMenuBar>
@@ -20,7 +20,7 @@
 namespace myvulkan 
 {
 //----------------------------------------------------------------------------------
-VulkanMainWindow::VulkanMainWindow(QVulkanInstance* vulkanInstance, QString vulkanInstanceLogMessage, int gpuIndex, QWidget *parent) 
+AppMainWindow::AppMainWindow(QVulkanInstance* vulkanInstance, QString vulkanInstanceLogMessage, int gpuIndex, QWidget *parent) 
 : QMainWindow(parent)
 , m_vulkanInstance(vulkanInstance)
 , m_selectedGpuIndex(gpuIndex)
@@ -47,11 +47,11 @@ VulkanMainWindow::VulkanMainWindow(QVulkanInstance* vulkanInstance, QString vulk
 }
 
 //----------------------------------------------------------------------------------
-QString VulkanMainWindow::createVulkanWindow()
+QString AppMainWindow::createVulkanWindow()
 {    
     QString warnLogMessage;
 
-    m_vulkanWindow = new HelloTriangleApplication();
+    m_vulkanWindow = new VulkanWindow();
     m_vulkanWindow->setVulkanInstance(m_vulkanInstance);
 
     auto availableDevices = m_vulkanWindow->availablePhysicalDevices();
@@ -82,7 +82,7 @@ QString VulkanMainWindow::createVulkanWindow()
 }
 
 //----------------------------------------------------------------------------------
-void VulkanMainWindow::appendLogMessage(const QString& message, LogLevel level)
+void AppMainWindow::appendLogMessage(const QString& message, LogLevel level)
 {
     if (!m_logWidget) {
         return;
@@ -92,7 +92,7 @@ void VulkanMainWindow::appendLogMessage(const QString& message, LogLevel level)
 }
 
 //----------------------------------------------------------------------------------
-void VulkanMainWindow::createCentralWidget()
+void AppMainWindow::createCentralWidget()
 {
     // Vulkan rendering area
     m_centralWidget = new QWidget(this);
@@ -112,29 +112,29 @@ void VulkanMainWindow::createCentralWidget()
 }
 
 //----------------------------------------------------------------------------------
-void VulkanMainWindow::createActions() 
+void AppMainWindow::createActions() 
 {
     // Exit the application
     m_closeAction = new QAction(QIcon(":/images/power.png"), tr("&Exit"), this);
     connect(m_closeAction, &QAction::triggered, qApp, &QApplication::quit);
 
     m_aboutAction = new QAction(tr("&About"), this);
-    connect(m_aboutAction, &QAction::triggered, this, &VulkanMainWindow::showAboutDialog);
+    connect(m_aboutAction, &QAction::triggered, this, &AppMainWindow::showAboutDialog);
 
     m_aboutQtAction = new QAction(tr("About &Qt"), this);
     connect(m_aboutQtAction, &QAction::triggered, qApp, &QApplication::aboutQt);
 
     m_vulkanPropertiesAction = new QAction(tr("Vulkan &Properties"), this);
-    connect(m_vulkanPropertiesAction, &QAction::triggered, this, &VulkanMainWindow::showVulkanPropertiesDialog);
+    connect(m_vulkanPropertiesAction, &QAction::triggered, this, &AppMainWindow::showVulkanPropertiesDialog);
     
     // Edit menu actions
     m_preferencesAction = new QAction(tr("&Preferences..."), this);
     // m_preferencesAction = new QAction(QIcon(":/images/preferences.png"), tr("&Preferences..."), this);
-    connect(m_preferencesAction, &QAction::triggered, this, &VulkanMainWindow::showPreferencesDialog);
+    connect(m_preferencesAction, &QAction::triggered, this, &AppMainWindow::showPreferencesDialog);
 }
 
 //----------------------------------------------------------------------------------
-void VulkanMainWindow::createFileMenu() 
+void AppMainWindow::createFileMenu() 
 {
     m_fileMenu = this->menuBar()->addMenu(tr("&File"));
     m_fileMenu->addSeparator();
@@ -142,7 +142,7 @@ void VulkanMainWindow::createFileMenu()
 }
 
 //----------------------------------------------------------------------------------
-void VulkanMainWindow::createHelpMenu() 
+void AppMainWindow::createHelpMenu() 
 {
     m_helpMenu = this->menuBar()->addMenu(tr("&Help"));
     m_helpMenu->addAction(m_aboutAction);
@@ -151,14 +151,14 @@ void VulkanMainWindow::createHelpMenu()
 }
 
 //----------------------------------------------------------------------------------
-void VulkanMainWindow::createEditMenu() 
+void AppMainWindow::createEditMenu() 
 {
     m_editMenu = this->menuBar()->addMenu(tr("&Edit"));
     m_editMenu->addAction(m_preferencesAction);
 }
 
 //----------------------------------------------------------------------------------
-void VulkanMainWindow::showAboutDialog() 
+void AppMainWindow::showAboutDialog() 
 {
     QMessageBox::about(this, 
                        tr("About Vulkan Sandbox"),
@@ -168,7 +168,7 @@ void VulkanMainWindow::showAboutDialog()
 }
 
 //----------------------------------------------------------------------------------
-void VulkanMainWindow::showVulkanPropertiesDialog() 
+void AppMainWindow::showVulkanPropertiesDialog() 
 {
     if(m_vulkanPropertiesDialog != nullptr)
     {
@@ -226,7 +226,7 @@ void VulkanMainWindow::showVulkanPropertiesDialog()
 }
 
 //----------------------------------------------------------------------------------
-void VulkanMainWindow::showPreferencesDialog()
+void AppMainWindow::showPreferencesDialog()
 {
     if (!m_vulkanWindow) {
         QMessageBox::warning(this, tr("Preferences"), tr("Vulkan window is not available."));
@@ -278,7 +278,7 @@ void VulkanMainWindow::showPreferencesDialog()
 }
 
 //----------------------------------------------------------------------------------
-void VulkanMainWindow::logSelectedGpuInfo() 
+void AppMainWindow::logSelectedGpuInfo() 
 {
     if(!m_vulkanWindow) 
     {

@@ -4,14 +4,14 @@
 
 namespace myvulkan 
 {
-class HelloTriangleApplication : public QVulkanWindow 
+class VulkanWindow : public QVulkanWindow 
 {
 public:
     /// @brief Constructor
-    explicit HelloTriangleApplication(QWindow* parent = nullptr) : QVulkanWindow(parent) {}
+    explicit VulkanWindow(QWindow* parent = nullptr) : QVulkanWindow(parent) {}
 
     /// @brief  Destructor
-    ~HelloTriangleApplication() = default;
+    ~VulkanWindow() = default;
 
     /// @see QVulkanWindow::createRenderer
     QVulkanWindowRenderer* createRenderer() override;

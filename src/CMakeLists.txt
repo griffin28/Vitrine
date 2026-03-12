@@ -1,7 +1,5 @@
 set (SRCS
     main.cpp
-    HelloTriangle.cpp
-    AppUtils.h
     resources/resources.qrc
     resources/style/qdarkstyle/dark/darkstyle.qrc
     resources/style/qdarkstyle/light/lightstyle.qrc
@@ -11,6 +9,7 @@ set (SRCS
 add_subdirectory(renderer)
 add_subdirectory(ui)
 add_subdirectory(shaders)
+add_subdirectory(core)
 
 add_executable(${CMAKE_PROJECT_NAME} ${SRCS})
 
@@ -24,6 +23,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
         Vulkan::cppm
         renderer
         ui
+        core
         compiler_props
 )
 
