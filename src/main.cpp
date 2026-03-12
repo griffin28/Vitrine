@@ -1,15 +1,18 @@
 #include <QApplication>
-#include <vulkan/vulkan.h>
-#include <QVulkanInstance>
 #include <QStyleHints>
 
 #include <iostream>
 #include <stdexcept>
 #include <cstdlib>
 
-#include "HelloTriangle.h"
 #include "VulkanMainWindow.h"
 #include "AppUtils.h"
+
+#ifdef NDEBUG
+constexpr bool enableValidationLayers = false;
+#else
+constexpr bool enableValidationLayers = true;
+#endif
 
 constexpr int WINDOW_WIDTH = 800;
 constexpr int WINDOW_HEIGHT = 600;
@@ -17,12 +20,6 @@ constexpr int WINDOW_HEIGHT = 600;
 const QByteArrayList validationLayers = {
     "VK_LAYER_KHRONOS_validation"
 };
-
-#ifdef NDEBUG
-constexpr bool enableValidationLayers = false;
-#else
-constexpr bool enableValidationLayers = true;
-#endif
 
 using AppUtils = myvulkan::AppUtils;
 
@@ -56,11 +53,14 @@ int main(int argc, char *argv[])
     } else {
         AppUtils::applyLightMode(app);
     }
+
     QVulkanInstance vulkanInstance;
+    QString logMessages;
 
     // Enable validation layers if in debug mode
     if (enableValidationLayers) {
         auto availableLayers = vulkanInstance.supportedLayers();
+        QByteArrayList validLayers;
 
         for (const QByteArray& layerName : validationLayers) {
             bool layerFound = false;
@@ -68,16 +68,25 @@ int main(int argc, char *argv[])
             for (const auto& layerProperties : availableLayers) {
                 if (layerName == layerProperties.name) {
                     layerFound = true;
+                    validLayers.append(layerName);
                     break;
                 }
             }
 
             if (!layerFound) {
-                throw std::runtime_error("Validation layer requested but not available: " + std::string(layerName.constData()));
+                logMessages.append(QString("Validation layer '%1' not found.").arg(layerName.constData()));
             }
         }
 
-        vulkanInstance.setLayers(validationLayers);
+        if(validLayers.isEmpty()) 
+        {
+            logMessages.append(QString("No requested validation layers are available. Running without validation layers."));
+        }
+        else 
+        {
+            logMessages.append(QString("Enabling validation layers: %1").arg(validLayers.join(", ")));
+            vulkanInstance.setLayers(validLayers);
+        }
     }
 
     if (!vulkanInstance.create()) 
@@ -85,35 +94,10 @@ int main(int argc, char *argv[])
         throw std::runtime_error("Failed to create Vulkan instance.");
     }
 
-    // Create the Vulkan window
-    myvulkan::HelloTriangleApplication triangleApp;
-    triangleApp.setVulkanInstance(&vulkanInstance);
-
-    auto availableDevices = triangleApp.availablePhysicalDevices();
-    if(availableDevices.isEmpty()) 
-    {
-        throw std::runtime_error("No Vulkan-compatible physical devices found.");
-    }
-
-    if (gpuIndex >= 0 && gpuIndex < availableDevices.size()) 
-    {
-        triangleApp.setPhysicalDeviceIndex(gpuIndex);
-    }
-    else 
-    {
-        if(gpuIndex >= availableDevices.size()) 
-        {
-            std::cerr << "Warning: Specified GPU index " << gpuIndex 
-                      << " is out of range. There are only " << availableDevices.size() 
-                      << " available devices. Falling back to automatic selection." << std::endl;
-        }
-        
-        int selectedDeviceIndex = AppUtils::pickPhysicalDevice(availableDevices);
-        triangleApp.setPhysicalDeviceIndex(selectedDeviceIndex);
-    }
-
     // Create and show the main application window
-    myvulkan::VulkanMainWindow mainWindow(nullptr, &triangleApp);
+    myvulkan::VulkanMainWindow mainWindow(&vulkanInstance, 
+                                          logMessages, 
+                                          gpuIndex);
     mainWindow.resize(WINDOW_WIDTH, WINDOW_HEIGHT);
     mainWindow.show();
 

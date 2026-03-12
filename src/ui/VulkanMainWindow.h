@@ -1,9 +1,9 @@
 #pragma once
 
-#include "CollapsibleLogWidget.h"
-
 #include <QMainWindow>
 #include <QVulkanWindow>
+
+#include "CollapsibleLogWidget.h"
 
 class QMenu;
 class QAction;
@@ -20,9 +20,14 @@ class VulkanMainWindow : public QMainWindow
 
 public:
     /// @brief Constructor for VulkanMainWindow.
+    /// @param vulkanInstance the Vulkan instance to use, default is nullptr (will create a new instance).
+    /// @param vulkanInstanceLogMessage log messages from the Vulkan instance creation, default is an empty string.
+    /// @param gpuIndex the index of the GPU to use, default is -1 (automatic selection).
     /// @param parent the parent widget, default is nullptr.
-    /// @param vulkanWindow the QVulkanWindow instance to be used for rendering, default is nullptr.
-    VulkanMainWindow(QWidget *parent = nullptr, QVulkanWindow *vulkanWindow = nullptr);
+    VulkanMainWindow(QVulkanInstance* vulkanInstance,
+                     QString vulkanInstanceLogMessage,
+                     int gpuIndex = -1,
+                     QWidget *parent = nullptr);
     
     /// @brief Destructor for VulkanMainWindow.
     ~VulkanMainWindow() = default;
@@ -38,13 +43,15 @@ public:
     /// @brief appends an error log message to the log panel.
     /// @param message the log message to append.
     void appendErrorLogMessage(const QString& message) { appendLogMessage(message, LogLevel::Error); }
-    
+
 private slots:
     void showAboutDialog();
     void showVulkanPropertiesDialog();
     void showPreferencesDialog();
 
 private:
+    QString createVulkanWindow();
+
     void createCentralWidget();
     void createActions();
     void createFileMenu();
@@ -55,6 +62,8 @@ private:
     void logSelectedGpuInfo();
 
     QVulkanWindow* m_vulkanWindow = nullptr;
+    QVulkanInstance* m_vulkanInstance = nullptr;
+    int m_selectedGpuIndex;
 
     QWidget* m_centralWidget = nullptr;
     QVBoxLayout* m_mainLayout = nullptr;

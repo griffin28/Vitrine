@@ -1,5 +1,6 @@
 #include "VulkanMainWindow.h"
 #include "AppUtils.h"
+#include "HelloTriangle.h"
 
 #include <QMenu>
 #include <QMenuBar>
@@ -19,10 +20,13 @@
 namespace myvulkan 
 {
 //----------------------------------------------------------------------------------
-VulkanMainWindow::VulkanMainWindow(QWidget *parent, QVulkanWindow *vulkanWindow) 
-    : QMainWindow(parent), m_vulkanWindow(vulkanWindow) 
+VulkanMainWindow::VulkanMainWindow(QVulkanInstance* vulkanInstance, QString vulkanInstanceLogMessage, int gpuIndex, QWidget *parent) 
+: QMainWindow(parent)
+, m_vulkanInstance(vulkanInstance)
+, m_selectedGpuIndex(gpuIndex)
 {
     this->setWindowTitle("Vulkan Sandbox");
+    auto vulkanWindowCreateLogMessage = this->createVulkanWindow();
     this->createCentralWidget();
 
     this->createActions();
@@ -30,13 +34,51 @@ VulkanMainWindow::VulkanMainWindow(QWidget *parent, QVulkanWindow *vulkanWindow)
     this->createEditMenu();
     this->createHelpMenu();
 
-    // auto logiclDevice = m_vulkanWindow->device();
-    // auto graphicsQueue = m_vulkanWindow->graphicsQueue();
-    // auto graphicsCommandPool = m_vulkanWindow->graphicsCommandPool();
-
-    // auto surface = QVulkanInstance::surfaceForWindow(m_vulkanWindow);
-
+    // Update 
+    if(!vulkanInstanceLogMessage.isEmpty()) 
+    {
+        this->appendInfoLogMessage("=========================");
+        this->appendInfoLogMessage("Vulkan Instance Creation: ");
+        this->appendInfoLogMessage("=========================");
+        this->appendInfoLogMessage(vulkanInstanceLogMessage.append("\n"));
+    }
     this->logSelectedGpuInfo();
+    this->appendWarningLogMessage(vulkanWindowCreateLogMessage);
+}
+
+//----------------------------------------------------------------------------------
+QString VulkanMainWindow::createVulkanWindow()
+{    
+    QString warnLogMessage;
+
+    m_vulkanWindow = new HelloTriangleApplication();
+    m_vulkanWindow->setVulkanInstance(m_vulkanInstance);
+
+    auto availableDevices = m_vulkanWindow->availablePhysicalDevices();
+    if(availableDevices.isEmpty()) 
+    {
+        qDebug() << "No Vulkan-compatible physical devices found.";
+        throw std::runtime_error("No Vulkan-compatible physical devices found.");
+    }
+
+    if (m_selectedGpuIndex >= 0 && m_selectedGpuIndex < availableDevices.size()) 
+    {
+        m_vulkanWindow->setPhysicalDeviceIndex(m_selectedGpuIndex);
+    }
+    else 
+    {
+        if(m_selectedGpuIndex >= availableDevices.size()) 
+        {
+            warnLogMessage.append(tr("Specified GPU index %1 is out of range. There are only %2 available devices. Falling back to automatic selection.")
+                              .arg(m_selectedGpuIndex)
+                              .arg(availableDevices.size()));
+        }
+        
+        m_selectedGpuIndex = AppUtils::pickPhysicalDevice(availableDevices);
+        m_vulkanWindow->setPhysicalDeviceIndex(m_selectedGpuIndex);
+    }
+
+    return warnLogMessage;
 }
 
 //----------------------------------------------------------------------------------
@@ -238,6 +280,12 @@ void VulkanMainWindow::showPreferencesDialog()
 //----------------------------------------------------------------------------------
 void VulkanMainWindow::logSelectedGpuInfo() 
 {
+    if(!m_vulkanWindow) 
+    {
+        appendErrorLogMessage("Vulkan window is not available.");
+        return;
+    }
+
     const auto& device = m_vulkanWindow->physicalDeviceProperties();
     
     if(device == nullptr) 
@@ -246,6 +294,9 @@ void VulkanMainWindow::logSelectedGpuInfo()
         return;
     }
 
+    appendInfoLogMessage("===========================");
+    appendInfoLogMessage(QString("Selected GPU Information: %1").arg(m_selectedGpuIndex));
+    appendInfoLogMessage("===========================");
     appendInfoLogMessage(QString("%1").arg(device->deviceName));
     appendInfoLogMessage(QString("Vulkan API Version: %1.%2.%3")
             .arg(VK_VERSION_MAJOR(device->apiVersion))
@@ -256,6 +307,6 @@ void VulkanMainWindow::logSelectedGpuInfo()
             .arg(VK_VERSION_MINOR(device->driverVersion))
             .arg(VK_VERSION_PATCH(device->driverVersion)));
     appendInfoLogMessage(QString("Vendor ID: %1").arg(device->vendorID));
-    appendInfoLogMessage(QString("Device ID: %1").arg(device->deviceID));
+    appendInfoLogMessage(QString("Device ID: %1\n").arg(device->deviceID));
 }
 } // namespace myvulkan

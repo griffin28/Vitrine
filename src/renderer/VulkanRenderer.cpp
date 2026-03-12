@@ -236,6 +236,21 @@ void VulkanRenderer::releaseResources()
         delete m_vertexBufferMemory;
         m_vertexBufferMemory = nullptr;
     }
+
+    // Index Buffer
+    if(m_indexBuffer) 
+    {
+        devFuncs->vkDestroyBuffer(m_window->device(), *m_indexBuffer, nullptr);
+        delete m_indexBuffer;
+        m_indexBuffer = nullptr;
+    }
+
+    if(m_indexBufferMemory) 
+    {
+        devFuncs->vkFreeMemory(m_window->device(), *m_indexBufferMemory, nullptr);
+        delete m_indexBufferMemory;
+        m_indexBufferMemory = nullptr;
+    }
 }
 
 //----------------------------------------------------------------------------------

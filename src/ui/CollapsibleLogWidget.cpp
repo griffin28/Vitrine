@@ -114,7 +114,7 @@ void CollapsibleLogWidget::customContextMenuRequested(const QPoint& pos)
 //----------------------------------------------------------------------------------
 void CollapsibleLogWidget::appendLogMessage(const QString &message, LogLevel level)
 {
-    if (!m_logText) {
+    if (!m_logText || message.isEmpty()) {
         return;
     }
 
