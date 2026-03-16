@@ -68,9 +68,20 @@ private:
     VkBuffer* m_indexBuffer = nullptr;
     VkDeviceMemory* m_indexBufferMemory = nullptr;
 
+    std::vector<VkBuffer *> m_uniformBuffers;
+    std::vector<VkDeviceMemory *> m_uniformBuffersMemory;
+    std::vector<void*> m_uniformBuffersMapped;
+
+    VkDescriptorSetLayout* m_descriptorSetLayout = nullptr;
+    VkDescriptorPool* m_descriptorPool = nullptr;
+    std::vector<VkDescriptorSet> m_descriptorSets;
+
     VkShaderModule createShaderModule(const QString& filePath);
     void createVertexBuffer();
     void createIndexBuffer();
+    void createUniformBuffers();
+    void createDescriptorPool();
+    void createDescriptorSets();
     VkResult createBuffer(VkDeviceSize size, 
                           VkBufferUsageFlags usage, 
                           VkMemoryPropertyFlags properties, 
@@ -79,6 +90,7 @@ private:
                           VkDeviceMemory& bufferMemory);
     VkResult copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties, bool hostVisible = true);
-    void recordCommandBuffer(const int frameIndex);
+    void recordCommandBuffer();
+    void updateUniformBuffer();
 };
 }  // namespace myvulkan
