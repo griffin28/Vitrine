@@ -76,7 +76,18 @@ private:
     VkDescriptorPool* m_descriptorPool = nullptr;
     std::vector<VkDescriptorSet> m_descriptorSets;
 
+    VkImage* m_textureImage = nullptr;
+    VkDeviceMemory* m_textureImageMemory = nullptr;
+
     VkShaderModule createShaderModule(const QString& filePath);
+    VkResult createTextureImage(const QString& filePath, VkImage& textureImage, VkDeviceMemory& textureImageMemory);
+    VkResult createImage(uint32_t width, uint32_t height, 
+                    VkFormat format, 
+                    VkImageTiling tiling, 
+                    VkImageUsageFlags usage, 
+                    VkMemoryPropertyFlags properties, 
+                    VkImage& image, 
+                    VkDeviceMemory& imageMemory);
     void createVertexBuffer();
     void createIndexBuffer();
     void createUniformBuffers();
@@ -88,9 +99,15 @@ private:
                           uint32_t memoryTypeIndex,
                           VkBuffer& buffer, 
                           VkDeviceMemory& bufferMemory);
+
+    VkCommandBuffer beginSingleTimeCommands();
+    VkResult endSingleTimeCommands(VkCommandBuffer& commandBuffer);
+
     VkResult copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+    VkResult copyBufferToImage(const VkBuffer& buffer, VkImage& image, uint32_t width, uint32_t height);
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties, bool hostVisible = true);
     void recordCommandBuffer();
     void updateUniformBuffer();
+    VkResult transitionImageLayout(VkImage& image, VkImageLayout oldLayout, VkImageLayout newLayout);
 };
 }  // namespace myvulkan
