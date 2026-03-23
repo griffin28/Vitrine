@@ -50,7 +50,7 @@ private slots:
     void showPreferencesDialog();
 
 private:
-    QString createVulkanWindow();
+    void createVulkanWindow(QString& infoLogMessage, QString& warnLogMessage, QString& errorLogMessage);
     void createCentralWidget();
     void createActions();
     void createFileMenu();

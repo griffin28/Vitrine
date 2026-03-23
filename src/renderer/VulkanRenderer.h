@@ -42,10 +42,10 @@ public:
     std::vector<Vertex> getVertices() const
     {
         return {
-            {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}}, // Bottom-left vertex (red)
-            {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}}, // Bottom-right vertex (green)
-            {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},  // Top-right vertex (blue)
-            {{-0.5f, 0.5f}, {1.0f, 1.0f, 0.0f}}   // Top-left vertex (yellow)
+            {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {2.f, 0.0f}}, // Bottom-left vertex (red)
+            {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},  // Bottom-right vertex (green)
+            {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 2.f}},   // Top-right vertex (blue)
+            {{-0.5f, 0.5f}, {1.0f, 1.0f, 0.0f}, {2.f, 2.f}}   // Top-left vertex (yellow)
         };
     }
 
@@ -78,9 +78,13 @@ private:
 
     VkImage* m_textureImage = nullptr;
     VkDeviceMemory* m_textureImageMemory = nullptr;
+    VkImageView* m_textureImageView = nullptr;
+    VkSampler* m_textureSampler = nullptr;
 
     VkShaderModule createShaderModule(const QString& filePath);
     VkResult createTextureImage(const QString& filePath, VkImage& textureImage, VkDeviceMemory& textureImageMemory);
+    VkResult createTextureImageView(VkImage& textureImage, VkImageView& textureImageView);
+    VkResult createTextureSampler(VkSampler& textureSampler);
     VkResult createImage(uint32_t width, uint32_t height, 
                     VkFormat format, 
                     VkImageTiling tiling, 
@@ -91,8 +95,8 @@ private:
     void createVertexBuffer();
     void createIndexBuffer();
     void createUniformBuffers();
-    void createDescriptorPool();
-    void createDescriptorSets();
+    VkResult createDescriptorPool();
+    VkResult createDescriptorSets();
     VkResult createBuffer(VkDeviceSize size, 
                           VkBufferUsageFlags usage, 
                           VkMemoryPropertyFlags properties, 

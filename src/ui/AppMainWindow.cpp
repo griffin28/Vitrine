@@ -26,7 +26,8 @@ AppMainWindow::AppMainWindow(QVulkanInstance* vulkanInstance, QString vulkanInst
 , m_selectedGpuIndex(gpuIndex)
 {
     this->setWindowTitle("Vulkan Sandbox");
-    auto vulkanWindowCreateLogMessage = this->createVulkanWindow();
+    QString infoLogMessage, warnLogMessage, errorLogMessage;
+    createVulkanWindow(infoLogMessage, warnLogMessage, errorLogMessage);
     this->createCentralWidget();
 
     this->createActions();
@@ -34,7 +35,7 @@ AppMainWindow::AppMainWindow(QVulkanInstance* vulkanInstance, QString vulkanInst
     this->createEditMenu();
     this->createHelpMenu();
 
-    // Update 
+    // Update Log
     if(!vulkanInstanceLogMessage.isEmpty()) 
     {
         this->appendInfoLogMessage("=========================");
@@ -43,14 +44,14 @@ AppMainWindow::AppMainWindow(QVulkanInstance* vulkanInstance, QString vulkanInst
         this->appendInfoLogMessage(vulkanInstanceLogMessage.append("\n"));
     }
     this->logSelectedGpuInfo();
-    this->appendWarningLogMessage(vulkanWindowCreateLogMessage);
+    this->appendInfoLogMessage(infoLogMessage);
+    this->appendWarningLogMessage(warnLogMessage);
+    this->appendErrorLogMessage(errorLogMessage);
 }
 
 //----------------------------------------------------------------------------------
-QString AppMainWindow::createVulkanWindow()
+void AppMainWindow::createVulkanWindow(QString &infoLogMessage, QString &warnLogMessage, QString &errorLogMessage)
 {    
-    QString warnLogMessage;
-
     m_vulkanWindow = new VulkanWindow();
     m_vulkanWindow->setVulkanInstance(m_vulkanInstance);
 
@@ -78,7 +79,27 @@ QString AppMainWindow::createVulkanWindow()
         m_vulkanWindow->setPhysicalDeviceIndex(m_selectedGpuIndex);
     }
 
-    return warnLogMessage;
+    // Set optional device extensions
+    auto supportedExtensions = m_vulkanWindow->supportedDeviceExtensions();
+    auto requestedExtensions = QByteArrayList{"VK_KHR_spirv_1_4", "VK_KHR_shader_float_controls"};
+    QByteArrayList validatedExtensions;
+
+    for(const auto& ext : requestedExtensions) 
+    {
+        if (std::find_if(supportedExtensions.begin(), supportedExtensions.end(), [&ext](const auto& supportedExt) { return std::strcmp(supportedExt.name, ext.constData()) == 0; }) != supportedExtensions.end()) 
+        {
+            validatedExtensions.append(ext);
+        } else {
+            warnLogMessage.append(tr("Optional device extension %1 not supported. Running without it.").arg(QString::fromUtf8(ext)));
+        }
+    }
+
+    if(!validatedExtensions.isEmpty()) 
+    {
+        m_vulkanWindow->setDeviceExtensions(validatedExtensions);
+        // TODO: update m_vulkanWindow to support setting device features based on enabled extensions
+        infoLogMessage.append(tr("Enabled device extensions: %1").arg(validatedExtensions.join(", ")));
+    }
 }
 
 //----------------------------------------------------------------------------------
@@ -181,18 +202,16 @@ void AppMainWindow::showVulkanPropertiesDialog()
             return;
         }
 
-        auto instance = m_vulkanWindow->vulkanInstance();
-
-        if (!instance || !instance->isValid()) {
-            QMessageBox::warning(this, tr("Vulkan Properties"), tr("Vulkan instance is not valid."));
-            return;
-        }
+        auto deviceProperties = m_vulkanWindow->physicalDeviceProperties();
 
         QStringList vulkanProperties;
-        vulkanProperties << QString(tr("<b>Vulkan API Version:</b> %1")).arg(instance->supportedApiVersion().toString());
+        vulkanProperties << QString(tr("<b>Vulkan API Version:</b> %1")).arg(deviceProperties ? QString("%1.%2.%3")
+            .arg(VK_VERSION_MAJOR(deviceProperties->apiVersion))
+            .arg(VK_VERSION_MINOR(deviceProperties->apiVersion))
+            .arg(VK_VERSION_PATCH(deviceProperties->apiVersion)) : "N/A");
 
-        auto extensions = instance->supportedExtensions();
-        vulkanProperties << QString(tr("<br><b>Supported Extensions:</b>"));
+        auto extensions = m_vulkanWindow->supportedDeviceExtensions();
+        vulkanProperties << QString(tr("<br><b>Supported Device Extensions:</b>"));
         vulkanProperties << QString("<ul>");
         for (const auto& ext : extensions) {
             vulkanProperties << QString("<li>%1</li> ").arg(QString::fromUtf8(ext.name));

@@ -39,6 +39,7 @@ struct Vertex
 {
     glm::vec2 pos;
     glm::vec3 color;
+    glm::vec2 texCoord;
 
     /// @brief Get the vertex input binding description for this vertex structure.
     /// @details This describes at which rate to load data from memory throughout the vertices. 
@@ -65,9 +66,9 @@ struct Vertex
     ///          It specifies the location, format, and offset of each attribute within the vertex data.
     ///          The location corresponds to the location specified in the vertex shader for each attribute.
     /// @return an array of VkVertexInputAttributeDescription describing how to extract vertex attributes
-    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() 
+    static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions() 
     {
-        std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+        std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
 
         // Position attribute
         attributeDescriptions[0].binding = 0;
@@ -80,6 +81,12 @@ struct Vertex
         attributeDescriptions[1].location = 1;
         attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT; // vec3
         attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+        // Texture coordinate attribute
+        attributeDescriptions[2].binding = 0;
+        attributeDescriptions[2].location = 2;
+        attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT; // vec2
+        attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
 
         return attributeDescriptions;
     }

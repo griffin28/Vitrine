@@ -150,11 +150,21 @@ void VulkanRenderer::initResources()
     };
 
     // Uniforms and Push Constants
-    auto uboLayoutBinding = UniformBufferObject::getDescriptorSetLayoutBinding(0);
+    VkDescriptorSetLayoutBinding uboLayoutBinding = UniformBufferObject::getDescriptorSetLayoutBinding(0);
+    VkDescriptorSetLayoutBinding samplerBinding = {
+        .binding = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount = 1,
+        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .pImmutableSamplers = nullptr
+    };
+
+    std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, samplerBinding};
+
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = 1,
-        .pBindings = &uboLayoutBinding
+        .bindingCount = static_cast<uint32_t>(bindings.size()),
+        .pBindings = bindings.data()
     };
 
     auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
@@ -218,7 +228,7 @@ void VulkanRenderer::initResources()
     const QString texturePath = QDir(appDir).filePath("textures/texture.jpeg");
     m_textureImage = new VkImage;
     m_textureImageMemory = new VkDeviceMemory;
-    
+
     result = this->createTextureImage(texturePath, *m_textureImage, *m_textureImageMemory);
     if (result != VK_SUCCESS)
     {        
@@ -226,12 +236,38 @@ void VulkanRenderer::initResources()
         // throw std::runtime_error("Failed to create texture image");
     }
 
+    // Create Texture Image View
+    m_textureImageView = new VkImageView;
+
+    result = this->createTextureImageView(*m_textureImage, *m_textureImageView);
+    if (result != VK_SUCCESS)
+    {
+        qWarning() << "Failed to create texture image view, VkResult:" << result;
+    }
+
+    // Create Texture Sampler
+    m_textureSampler = new VkSampler;
+    result = this->createTextureSampler(*m_textureSampler);
+    if (result != VK_SUCCESS)    {
+        qWarning() << "Failed to create texture sampler, VkResult:" << result;
+    }
+
     // Create Buffers
     this->createVertexBuffer();
     this->createIndexBuffer();
     this->createUniformBuffers();
-    this->createDescriptorPool();
-    this->createDescriptorSets();
+
+    result = this->createDescriptorPool();
+    if (result != VK_SUCCESS)
+    {
+        qWarning() << "Failed to create descriptor pool, VkResult:" << result;
+    }
+
+    result = this->createDescriptorSets();
+    if (result != VK_SUCCESS)
+    {
+        qWarning() << "Failed to create descriptor sets, VkResult:" << result;
+    }
 }
 
 //----------------------------------------------------------------------------------
@@ -328,7 +364,7 @@ void VulkanRenderer::releaseResources()
         m_descriptorSetLayout = nullptr;    
     }
 
-    // Texture Image
+    // Texture Resources
     if (m_textureImage) 
     {
         devFuncs->vkDestroyImage(m_window->device(), *m_textureImage, nullptr);
@@ -341,6 +377,20 @@ void VulkanRenderer::releaseResources()
         devFuncs->vkFreeMemory(m_window->device(), *m_textureImageMemory, nullptr);
         delete m_textureImageMemory;
         m_textureImageMemory = nullptr;
+    }
+
+    if (m_textureImageView) 
+    {
+        devFuncs->vkDestroyImageView(m_window->device(), *m_textureImageView, nullptr);
+        delete m_textureImageView;
+        m_textureImageView = nullptr;
+    }
+
+    if (m_textureSampler) 
+    {
+        devFuncs->vkDestroySampler(m_window->device(), *m_textureSampler, nullptr);
+        delete m_textureSampler;
+        m_textureSampler = nullptr;
     }
 }
 
@@ -726,6 +776,75 @@ VkResult VulkanRenderer::createTextureImage(const QString& texturePath,
 }
 
 //----------------------------------------------------------------------------------
+VkResult VulkanRenderer::createTextureImageView(VkImage& textureImage, VkImageView& textureImageView) 
+{
+    VkImageViewCreateInfo viewInfo{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = textureImage,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = VK_FORMAT_R8G8B8A8_SRGB,
+        .components = {
+            .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .a = VK_COMPONENT_SWIZZLE_IDENTITY
+        },
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1
+        }
+    };
+
+    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
+
+    VkResult result = devFuncs->vkCreateImageView(m_window->device(), &viewInfo, nullptr, &textureImageView);
+    if (result != VK_SUCCESS) 
+    {
+        qWarning() << "Failed to create texture image view, VkResult:" << result;
+        return result;
+    }
+
+    return VK_SUCCESS;
+}
+
+//----------------------------------------------------------------------------------
+VkResult VulkanRenderer::createTextureSampler(VkSampler& textureSampler) 
+{
+    const VkPhysicalDeviceProperties* deviceProperties = m_window->physicalDeviceProperties();
+    VkSamplerCreateInfo samplerInfo{
+        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .magFilter = VK_FILTER_LINEAR,
+        .minFilter = VK_FILTER_LINEAR,
+        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .mipLodBias = 0.0f,
+        .anisotropyEnable = VK_TRUE,
+        .maxAnisotropy = deviceProperties->limits.maxSamplerAnisotropy,
+        .compareEnable = VK_FALSE,
+        .compareOp = VK_COMPARE_OP_ALWAYS,
+        .minLod = 0.0f,
+        .maxLod = 0.0f,
+        .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+        .unnormalizedCoordinates = VK_FALSE
+    };
+
+    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
+    VkResult result = devFuncs->vkCreateSampler(m_window->device(), &samplerInfo, nullptr, &textureSampler);
+    if (result != VK_SUCCESS) 
+    {
+        qWarning() << "Failed to create texture sampler, VkResult:" << result;
+        return result;
+    }
+
+    return VK_SUCCESS;
+}
+
+//----------------------------------------------------------------------------------
 VkResult VulkanRenderer::createImage(uint32_t width,
                                      uint32_t height,
                                      VkFormat format,
@@ -937,35 +1056,39 @@ void VulkanRenderer::createUniformBuffers()
 }
 
 //----------------------------------------------------------------------------------
-void VulkanRenderer::createDescriptorPool() 
+VkResult VulkanRenderer::createDescriptorPool() 
 {
     // Create a descriptor pool that can allocate descriptor sets for our uniform buffers.
     // This is needed if we want to use descriptor sets to bind our uniform buffers to the pipeline.
-    VkDescriptorPoolSize poolSize{
+    VkDescriptorPoolSize uniformPoolSize{
         .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
         .descriptorCount = static_cast<uint32_t>(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT)
     };
+
+    VkDescriptorPoolSize samplerPoolSize{
+        .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount = static_cast<uint32_t>(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT)
+    };
+
+    std::array<VkDescriptorPoolSize, 2> poolSizes = {uniformPoolSize, samplerPoolSize};
+
 
     VkDescriptorPoolCreateInfo poolInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
         .maxSets = static_cast<uint32_t>(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT),
-        .poolSizeCount = 1,
-        .pPoolSizes = &poolSize
+        .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
+        .pPoolSizes = poolSizes.data()
     };
 
     auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
     m_descriptorPool = new VkDescriptorPool;
 
-    VkResult result = devFuncs->vkCreateDescriptorPool(m_window->device(), &poolInfo, nullptr, m_descriptorPool);
-    if (result != VK_SUCCESS) 
-    {
-        qWarning() << "Failed to create descriptor pool, VkResult:" << result;
-    }
+    return devFuncs->vkCreateDescriptorPool(m_window->device(), &poolInfo, nullptr, m_descriptorPool);
 }
 
 //----------------------------------------------------------------------------------
-void VulkanRenderer::createDescriptorSets() 
+VkResult VulkanRenderer::createDescriptorSets() 
 {
     // Allocate and configure descriptor sets for our uniform buffers.
     std::vector<VkDescriptorSetLayout> layouts(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT, *m_descriptorSetLayout);
@@ -978,13 +1101,12 @@ void VulkanRenderer::createDescriptorSets()
 
     m_descriptorSets.clear();
     m_descriptorSets.resize(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT);
-
     auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
+
     VkResult result = devFuncs->vkAllocateDescriptorSets(m_window->device(), &allocInfo, m_descriptorSets.data());
     if (result != VK_SUCCESS) 
     {
-        qWarning() << "Failed to allocate descriptor sets, VkResult:" << result;
-        return;
+        return result;
     }
 
     for (size_t i = 0; i < QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT; i++) 
@@ -995,7 +1117,13 @@ void VulkanRenderer::createDescriptorSets()
             .range = sizeof(UniformBufferObject)
         };
 
-        VkWriteDescriptorSet descriptorWrite{
+        VkDescriptorImageInfo imageInfo{
+            .sampler = *m_textureSampler,
+            .imageView = *m_textureImageView,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        };
+
+        VkWriteDescriptorSet descriptorWriteUniform{
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet = m_descriptorSets[i],
             .dstBinding = 0,
@@ -1005,8 +1133,21 @@ void VulkanRenderer::createDescriptorSets()
             .pBufferInfo = &bufferInfo
         };
 
-        devFuncs->vkUpdateDescriptorSets(m_window->device(), 1, &descriptorWrite, 0, nullptr);
+        VkWriteDescriptorSet descriptorWriteImage{
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = m_descriptorSets[i],
+            .dstBinding = 1,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .pImageInfo = &imageInfo
+        };
+
+        std::array<VkWriteDescriptorSet, 2> descriptorWrites = {descriptorWriteUniform, descriptorWriteImage};
+        devFuncs->vkUpdateDescriptorSets(m_window->device(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }
+
+    return VK_SUCCESS;
 }
 
 //----------------------------------------------------------------------------------

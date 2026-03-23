@@ -89,6 +89,42 @@ int main(int argc, char *argv[])
         }
     }
 
+    // Set the Vulkan API version
+    auto supportedApiVersion = vulkanInstance.supportedApiVersion();
+
+    if (supportedApiVersion >= QVersionNumber(1,4)) 
+    {
+        vulkanInstance.setApiVersion(QVersionNumber(1, 4));
+        logMessages.append(QString("; Requesting Vulkan API version 1.4. Supported version: %1.%2.%3")
+                          .arg(supportedApiVersion.majorVersion())
+                          .arg(supportedApiVersion.minorVersion())
+                          .arg(supportedApiVersion.microVersion()));
+    } 
+    else if (supportedApiVersion >= QVersionNumber(1, 3)) 
+    {
+        vulkanInstance.setApiVersion(QVersionNumber(1, 3));
+        logMessages.append(QString("; Requesting Vulkan API version 1.3. Supported version: %1.%2.%3")
+                          .arg(supportedApiVersion.majorVersion())
+                          .arg(supportedApiVersion.minorVersion())
+                          .arg(supportedApiVersion.microVersion()));
+    } 
+    else if(supportedApiVersion >= QVersionNumber(1, 2)) 
+    {
+        vulkanInstance.setApiVersion(QVersionNumber(1, 2));
+        logMessages.append(QString("; Requesting Vulkan API version 1.2. Supported version: %1.%2.%3")
+                          .arg(supportedApiVersion.majorVersion())
+                          .arg(supportedApiVersion.minorVersion())
+                          .arg(supportedApiVersion.microVersion()));
+    } 
+    else 
+    {
+        vulkanInstance.setApiVersion(supportedApiVersion);
+        logMessages.append(QString("; Vulkan API version 1.2 or higher is not supported. Supported version: %1.%2.%3")
+                          .arg(supportedApiVersion.majorVersion())
+                          .arg(supportedApiVersion.minorVersion())
+                          .arg(supportedApiVersion.microVersion()));
+    }
+
     if (!vulkanInstance.create()) 
     {
         throw std::runtime_error("Failed to create Vulkan instance.");
