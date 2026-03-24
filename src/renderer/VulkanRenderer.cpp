@@ -12,6 +12,7 @@
 #include <vector>
 #include <chrono>
 
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -118,8 +119,8 @@ void VulkanRenderer::initResources()
     // Depth and Stencil Testing
     VkPipelineDepthStencilStateCreateInfo depthStencil{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .depthTestEnable = VK_FALSE,
-        .depthWriteEnable = VK_FALSE,
+        .depthTestEnable = VK_TRUE,
+        .depthWriteEnable = VK_TRUE,
         .depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL,
         .depthBoundsTestEnable = VK_FALSE,
         .stencilTestEnable = VK_FALSE,
@@ -239,7 +240,7 @@ void VulkanRenderer::initResources()
     // Create Texture Image View
     m_textureImageView = new VkImageView;
 
-    result = this->createTextureImageView(*m_textureImage, *m_textureImageView);
+    result = this->createImageView(*m_textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, *m_textureImageView);
     if (result != VK_SUCCESS)
     {
         qWarning() << "Failed to create texture image view, VkResult:" << result;
@@ -776,13 +777,13 @@ VkResult VulkanRenderer::createTextureImage(const QString& texturePath,
 }
 
 //----------------------------------------------------------------------------------
-VkResult VulkanRenderer::createTextureImageView(VkImage& textureImage, VkImageView& textureImageView) 
+VkResult VulkanRenderer::createImageView(VkImage& image, VkFormat format, VkImageAspectFlags aspectFlags, VkImageView& imageView) 
 {
-    VkImageViewCreateInfo viewInfo{
+     VkImageViewCreateInfo viewInfo{
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = textureImage,
+        .image = image,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = VK_FORMAT_R8G8B8A8_SRGB,
+        .format = format,
         .components = {
             .r = VK_COMPONENT_SWIZZLE_IDENTITY,
             .g = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -790,7 +791,7 @@ VkResult VulkanRenderer::createTextureImageView(VkImage& textureImage, VkImageVi
             .a = VK_COMPONENT_SWIZZLE_IDENTITY
         },
         .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .aspectMask = aspectFlags,
             .baseMipLevel = 0,
             .levelCount = 1,
             .baseArrayLayer = 0,
@@ -800,10 +801,10 @@ VkResult VulkanRenderer::createTextureImageView(VkImage& textureImage, VkImageVi
 
     auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
 
-    VkResult result = devFuncs->vkCreateImageView(m_window->device(), &viewInfo, nullptr, &textureImageView);
+    VkResult result = devFuncs->vkCreateImageView(m_window->device(), &viewInfo, nullptr, &imageView);
     if (result != VK_SUCCESS) 
     {
-        qWarning() << "Failed to create texture image view, VkResult:" << result;
+        qWarning() << "Failed to create image view, VkResult:" << result;
         return result;
     }
 
@@ -1405,5 +1406,11 @@ VkResult VulkanRenderer::transitionImageLayout(VkImage& image, VkImageLayout old
     );
 
     return this->endSingleTimeCommands(commandBuffer);
+}
+
+//-----------------------------------------------------------------------------
+bool VulkanRenderer::hasStencilComponent(VkFormat format) 
+{
+    return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }
 }  // namespace myvulkan

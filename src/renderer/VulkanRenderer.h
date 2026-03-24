@@ -42,18 +42,23 @@ public:
     std::vector<Vertex> getVertices() const
     {
         return {
-            {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {2.f, 0.0f}}, // Bottom-left vertex (red)
-            {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},  // Bottom-right vertex (green)
-            {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 2.f}},   // Top-right vertex (blue)
-            {{-0.5f, 0.5f}, {1.0f, 1.0f, 0.0f}, {2.f, 2.f}}   // Top-left vertex (yellow)
+            {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.f, 0.0f}}, // Bottom-left vertex (red)
+            {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},  // Bottom-right vertex (green)
+            {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.f}},   // Top-right vertex (blue)
+            {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 0.0f}, {1.f, 1.f}},   // Top-left vertex (yellow)
+
+            {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.f, 0.0f}}, // Bottom-left vertex (red)
+            {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},  // Bottom-right vertex (green)
+            {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.f}},   // Top-right vertex (blue)
+            {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 0.0f}, {1.f, 1.f}}   // Top-left vertex (yellow)
         };
     }
 
     std::vector<uint16_t> getIndices() const
     {
         return {
-            0, 1, 2, // First triangle (bottom-right)
-            2, 3, 0  // Second triangle (top-left)
+            0, 1, 2, 2, 3, 0,
+            4, 5, 6, 6, 7, 4
         };
     }
 
@@ -83,8 +88,11 @@ private:
 
     VkShaderModule createShaderModule(const QString& filePath);
     VkResult createTextureImage(const QString& filePath, VkImage& textureImage, VkDeviceMemory& textureImageMemory);
-    VkResult createTextureImageView(VkImage& textureImage, VkImageView& textureImageView);
     VkResult createTextureSampler(VkSampler& textureSampler);
+    VkResult createImageView(VkImage& image, 
+                             VkFormat format, 
+                             VkImageAspectFlags aspectFlags, 
+                             VkImageView& imageView);
     VkResult createImage(uint32_t width, uint32_t height, 
                     VkFormat format, 
                     VkImageTiling tiling, 
@@ -104,14 +112,15 @@ private:
                           VkBuffer& buffer, 
                           VkDeviceMemory& bufferMemory);
 
+    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties, bool hostVisible = true);
     VkCommandBuffer beginSingleTimeCommands();
     VkResult endSingleTimeCommands(VkCommandBuffer& commandBuffer);
+    bool hasStencilComponent(VkFormat format);
 
-    VkResult copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
-    VkResult copyBufferToImage(const VkBuffer& buffer, VkImage& image, uint32_t width, uint32_t height);
-    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties, bool hostVisible = true);
     void recordCommandBuffer();
     void updateUniformBuffer();
+    VkResult copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+    VkResult copyBufferToImage(const VkBuffer& buffer, VkImage& image, uint32_t width, uint32_t height);
     VkResult transitionImageLayout(VkImage& image, VkImageLayout oldLayout, VkImageLayout newLayout);
 };
 }  // namespace myvulkan
