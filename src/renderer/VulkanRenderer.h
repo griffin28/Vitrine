@@ -36,40 +36,42 @@ public:
     /// @see QVulkanWindowRenderer::startNextFrame
     void startNextFrame() override;
 
-    size_t getVertexBufferSize() const { return sizeof(Vertex) * this->getVertices().size(); }
-    size_t getIndexBufferSize() const { return sizeof(uint16_t) * this->getIndices().size(); }
+    size_t getVertexBufferSize() const { return sizeof(Vertex) * m_vertices.size(); }
+    size_t getIndexBufferSize() const { return sizeof(uint32_t) * m_indices.size(); }
 
-    std::vector<Vertex> getVertices() const
-    {
-        return {
-            {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.f, 0.0f}}, // Bottom-left vertex (red)
-            {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},  // Bottom-right vertex (green)
-            {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.f}},   // Top-right vertex (blue)
-            {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 0.0f}, {1.f, 1.f}},   // Top-left vertex (yellow)
+    // std::vector<Vertex> getVertices() const
+    // {
+    //     return {
+    //         {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.f, 0.0f}}, // Bottom-left vertex (red)
+    //         {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},  // Bottom-right vertex (green)
+    //         {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.f}},   // Top-right vertex (blue)
+    //         {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 0.0f}, {1.f, 1.f}},   // Top-left vertex (yellow)
 
-            {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.f, 0.0f}}, // Bottom-left vertex (red)
-            {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},  // Bottom-right vertex (green)
-            {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.f}},   // Top-right vertex (blue)
-            {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 0.0f}, {1.f, 1.f}}   // Top-left vertex (yellow)
-        };
-    }
+    //         {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.f, 0.0f}}, // Bottom-left vertex (red)
+    //         {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},  // Bottom-right vertex (green)
+    //         {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.f}},   // Top-right vertex (blue)
+    //         {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 0.0f}, {1.f, 1.f}}   // Top-left vertex (yellow)
+    //     };
+    // }
 
-    std::vector<uint16_t> getIndices() const
-    {
-        return {
-            0, 1, 2, 2, 3, 0,
-            4, 5, 6, 6, 7, 4
-        };
-    }
+    // std::vector<uint16_t> getIndices() const
+    // {
+    //     return {
+    //         0, 1, 2, 2, 3, 0,
+    //         4, 5, 6, 6, 7, 4
+    //     };
+    // }
 
 private:
     QVulkanWindow* m_window = nullptr;
     VkPipelineLayout* m_pipelineLayout = nullptr;
     VkPipeline* m_graphicsPipeline = nullptr;
 
+    std::vector<Vertex> m_vertices;
     VkBuffer* m_vertexBuffer = nullptr;
     VkDeviceMemory* m_vertexBufferMemory = nullptr;
 
+    std::vector<uint32_t> m_indices;
     VkBuffer* m_indexBuffer = nullptr;
     VkDeviceMemory* m_indexBufferMemory = nullptr;
 
@@ -117,6 +119,7 @@ private:
     VkResult endSingleTimeCommands(VkCommandBuffer& commandBuffer);
     bool hasStencilComponent(VkFormat format);
 
+    void loadModel(const QString& path);
     void recordCommandBuffer();
     void updateUniformBuffer();
     VkResult copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);

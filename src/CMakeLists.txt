@@ -11,11 +11,13 @@ add_subdirectory(ui)
 add_subdirectory(shaders)
 add_subdirectory(core)
 add_subdirectory(textures)
+add_subdirectory(models)
 
 add_executable(${CMAKE_PROJECT_NAME} ${SRCS})
 
 add_dependencies(${CMAKE_PROJECT_NAME} slang_shaders)
 add_dependencies(${CMAKE_PROJECT_NAME} texture_cpy)
+add_dependencies(${CMAKE_PROJECT_NAME} model_cpy)
 
 target_link_libraries(${CMAKE_PROJECT_NAME}
     PRIVATE

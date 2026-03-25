@@ -17,9 +17,9 @@ target_include_directories(renderer
         ${Qt6Gui_INCLUDE_DIRS}
         ${Qt6Widgets_INCLUDE_DIRS}
         ${stb_INCLUDE_DIRS}
+        ${tinyobjloader_INCLUDE_DIRS}
         # ${Qt6Vulkan_INCLUDE_DIRS}
         # ${Vulkan_INCLUDE_DIRS}
-        # ${tinyobjloader_INCLUDE_DIRS}
         # ${tinygltf_INCLUDE_DIRS}
         # ${KTX_INCLUDE_DIRS}
 )

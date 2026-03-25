@@ -41,6 +41,14 @@ struct Vertex
     glm::vec3 color;
     glm::vec2 texCoord;
 
+    /// @brief Equality operator for Vertex structure.
+    /// @param other The other vertex to compare with.
+    /// @return true if the vertices are equal, false otherwise.
+    bool operator==(const Vertex& other) const
+    {
+        return pos == other.pos && color == other.color && texCoord == other.texCoord;
+    }
+
     /// @brief Get the vertex input binding description for this vertex structure.
     /// @details This describes at which rate to load data from memory throughout the vertices. 
     ///          It specifies the number of bytes between data entries and whether to move to the next
@@ -157,4 +165,19 @@ public:
         app.setStyleSheet(stream.readAll());
     }
 };
-}
+} // namespace myvulkan
+
+// Custom specialization of std::hash for myvulkan::Vertex
+// Allows it to be used as a key in unordered_map
+// Gets injected into the namespace std
+template <>
+struct std::hash<myvulkan::Vertex>
+{
+    size_t operator()(const myvulkan::Vertex& vertex) const noexcept
+    {
+        size_t h1 = std::hash<float>()(vertex.pos.x) ^ (std::hash<float>()(vertex.pos.y) << 1) ^ (std::hash<float>()(vertex.pos.z) << 2);
+        size_t h2 = std::hash<float>()(vertex.color.x) ^ (std::hash<float>()(vertex.color.y) << 1) ^ (std::hash<float>()(vertex.color.z) << 2);
+        size_t h3 = std::hash<float>()(vertex.texCoord.x) ^ (std::hash<float>()(vertex.texCoord.y) << 1);
+        return h1 ^ (h2 << 1) ^ (h3 << 2);
+    }
+};

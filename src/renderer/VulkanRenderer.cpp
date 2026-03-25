@@ -19,6 +19,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
+
 namespace myvulkan 
 {
 //----------------------------------------------------------------------------------
@@ -226,7 +229,7 @@ void VulkanRenderer::initResources()
     devFuncs->vkDestroyShaderModule(m_window->device(), fragShaderModule, nullptr);
 
     // Create Texture Image
-    const QString texturePath = QDir(appDir).filePath("textures/texture.jpeg");
+    const QString texturePath = QDir(appDir).filePath("textures/viking_room.png");
     m_textureImage = new VkImage;
     m_textureImageMemory = new VkDeviceMemory;
 
@@ -252,6 +255,8 @@ void VulkanRenderer::initResources()
     if (result != VK_SUCCESS)    {
         qWarning() << "Failed to create texture sampler, VkResult:" << result;
     }
+
+    this->loadModel(QDir(appDir).filePath("models/viking_room.obj"));
 
     // Create Buffers
     this->createVertexBuffer();
@@ -476,7 +481,7 @@ void VulkanRenderer::recordCommandBuffer()
     const VkBuffer vertexBuffers[] = {*m_vertexBuffer};
     const VkDeviceSize offsets[] = {0};
     devFuncs->vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-    devFuncs->vkCmdBindIndexBuffer(commandBuffer, *m_indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+    devFuncs->vkCmdBindIndexBuffer(commandBuffer, *m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     VkViewport viewPort = {
         .x = 0.0f,
@@ -497,7 +502,7 @@ void VulkanRenderer::recordCommandBuffer()
     // Draw
     // devFuncs->vkCmdDraw(commandBuffer, 3, 1, 0, 0);
     devFuncs->vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_pipelineLayout, 0, 1, &m_descriptorSets[m_window->currentFrame()], 0, nullptr);
-    devFuncs->vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(this->getIndices().size()), 1, 0, 0, 0);
+    devFuncs->vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_indices.size()), 1, 0, 0, 0);
 
     devFuncs->vkCmdEndRenderPass(commandBuffer);
 }
@@ -591,9 +596,7 @@ VkShaderModule VulkanRenderer::createShaderModule(const QString& filePath)
 //----------------------------------------------------------------------------------
 void VulkanRenderer::createIndexBuffer() 
 {
-    const auto indices = this->getIndices();
-
-    if(indices.empty()) 
+    if(m_indices.empty()) 
     {
         qWarning() << "Index list is empty, skipping index buffer creation."; 
         return;
@@ -635,7 +638,7 @@ void VulkanRenderer::createIndexBuffer()
         return;
     }
 
-    std::memcpy(data, indices.data(), static_cast<size_t>(bufferSize));
+    std::memcpy(data, m_indices.data(), static_cast<size_t>(bufferSize));
     devFuncs->vkUnmapMemory(m_window->device(), stagingBufferMemory);
 
     // Index Buffer Creation
@@ -923,16 +926,14 @@ VkResult VulkanRenderer::createImage(uint32_t width,
 //----------------------------------------------------------------------------------
 void VulkanRenderer::createVertexBuffer() 
 {
-    const auto vertices = this->getVertices();
-
-    if(vertices.empty()) 
+    if(m_vertices.empty()) 
     {
         qWarning() << "Vertex list is empty, skipping vertex buffer creation."; 
         return;
     }
 
     auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
-    VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+    VkDeviceSize bufferSize = sizeof(m_vertices[0]) * m_vertices.size();
     
     uint32_t memoryTypeIndex = m_window->hostVisibleMemoryIndex();
     if(memoryTypeIndex == UINT32_MAX)
@@ -967,7 +968,7 @@ void VulkanRenderer::createVertexBuffer()
         return;
     }
 
-    std::memcpy(data, vertices.data(), static_cast<size_t>(bufferSize));
+    std::memcpy(data, m_vertices.data(), static_cast<size_t>(bufferSize));
     devFuncs->vkUnmapMemory(m_window->device(), stagingBufferMemory);
 
     // Vertex Buffer Creation
@@ -1412,5 +1413,67 @@ VkResult VulkanRenderer::transitionImageLayout(VkImage& image, VkImageLayout old
 bool VulkanRenderer::hasStencilComponent(VkFormat format) 
 {
     return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
+}
+
+//-----------------------------------------------------------------------------
+void VulkanRenderer::loadModel(const QString& path)
+{
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::string warn, err;
+
+    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path.toStdString().c_str())) 
+    {
+        qWarning() << "Failed to load model:" << path << "\n" << warn.c_str() << "\n" << err.c_str();
+        return;
+    }
+
+    std::unordered_map<Vertex, uint32_t> uniqueVertices{};
+    m_vertices.clear();
+    m_indices.clear();
+
+    for (const auto& shape : shapes) 
+    {
+        for (const auto& index : shape.mesh.indices) 
+        {
+            Vertex vertex{};
+
+            vertex.pos = {
+                attrib.vertices[3 * index.vertex_index + 0],
+                attrib.vertices[3 * index.vertex_index + 1],
+                attrib.vertices[3 * index.vertex_index + 2]
+            };
+
+            // if (index.normal_index >= 0) 
+            // {
+            //     vertex.normal = {
+            //         attrib.normals[3 * index.normal_index + 0],
+            //         attrib.normals[3 * index.normal_index + 1],
+            //         attrib.normals[3 * index.normal_index + 2]
+            //     };
+            // }
+
+            if (index.texcoord_index >= 0) 
+            {
+                vertex.texCoord = {
+                    attrib.texcoords[2 * index.texcoord_index + 0],
+                    1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+                };
+            }
+
+            vertex.color = {1.0f, 1.0f, 1.0f};
+
+            if(uniqueVertices.count(vertex) == 0)
+            {
+                uniqueVertices[vertex] = static_cast<uint32_t>(m_vertices.size());
+                m_vertices.push_back(vertex);
+            }
+
+            m_indices.push_back(uniqueVertices[vertex]);
+        }
+    }
+
+    qInfo() << "Loaded model:" << path << "with" << m_vertices.size() << "vertices and" << m_indices.size() << "indices.";
 }
 }  // namespace myvulkan
