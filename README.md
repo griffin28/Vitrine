@@ -1,7 +1,7 @@
 # Vulkan Tutorial
-<img width="1050" height="959" alt="vulkan_window" src="https://github.com/user-attachments/assets/6910dad7-9ccd-4a68-a5e8-6e7d9a016d15" />
+<img width="1050" height="959" alt="Vulkan Screenshot" src="https://github.com/user-attachments/assets/74f41c63-6b02-467f-909b-e57aae9b50e2" />
 
-A small Vulkan + Qt6 sample application built with CMake.
+Vulkan + Qt6 application built with CMake.
 
 ## Project layout
 
