@@ -1,4 +1,4 @@
-# Vulkan Tutorial
+# Vulkan Sandbox
 <img width="1050" height="959" alt="Vulkan Screenshot" src="https://github.com/user-attachments/assets/74f41c63-6b02-467f-909b-e57aae9b50e2" />
 
 Vulkan + Qt6 application built with CMake.
