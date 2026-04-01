@@ -39,29 +39,6 @@ public:
     size_t getVertexBufferSize() const { return sizeof(Vertex) * m_vertices.size(); }
     size_t getIndexBufferSize() const { return sizeof(uint32_t) * m_indices.size(); }
 
-    // std::vector<Vertex> getVertices() const
-    // {
-    //     return {
-    //         {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.f, 0.0f}}, // Bottom-left vertex (red)
-    //         {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},  // Bottom-right vertex (green)
-    //         {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.f}},   // Top-right vertex (blue)
-    //         {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 0.0f}, {1.f, 1.f}},   // Top-left vertex (yellow)
-
-    //         {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.f, 0.0f}}, // Bottom-left vertex (red)
-    //         {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},  // Bottom-right vertex (green)
-    //         {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.f}},   // Top-right vertex (blue)
-    //         {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 0.0f}, {1.f, 1.f}}   // Top-left vertex (yellow)
-    //     };
-    // }
-
-    // std::vector<uint16_t> getIndices() const
-    // {
-    //     return {
-    //         0, 1, 2, 2, 3, 0,
-    //         4, 5, 6, 6, 7, 4
-    //     };
-    // }
-
 private:
     QVulkanWindow* m_window = nullptr;
     VkPipelineLayout* m_pipelineLayout = nullptr;
@@ -83,6 +60,7 @@ private:
     VkDescriptorPool* m_descriptorPool = nullptr;
     std::vector<VkDescriptorSet> m_descriptorSets;
 
+    uint32_t m_mipLevels = 0;
     VkImage* m_textureImage = nullptr;
     VkDeviceMemory* m_textureImageMemory = nullptr;
     VkImageView* m_textureImageView = nullptr;
@@ -118,6 +96,7 @@ private:
     VkCommandBuffer beginSingleTimeCommands();
     VkResult endSingleTimeCommands(VkCommandBuffer& commandBuffer);
     bool hasStencilComponent(VkFormat format);
+    VkResult generateMipmaps(VkImage& image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
 
     void loadModel(const QString& path);
     void recordCommandBuffer();
