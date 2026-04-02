@@ -12,6 +12,7 @@ class QVBoxLayout;
 class QDialog;
 class QComboBox;
 
+
 namespace myvulkan 
 {
 class AppMainWindow : public QMainWindow 
@@ -27,6 +28,7 @@ public:
     AppMainWindow(QVulkanInstance* vulkanInstance,
                      QString vulkanInstanceLogMessage,
                      int gpuIndex = -1,
+                     bool darkMode = false,
                      QWidget *parent = nullptr);
     
     /// @brief Destructor for AppMainWindow.
@@ -44,25 +46,41 @@ public:
     /// @param message the log message to append.
     void appendErrorLogMessage(const QString& message) { appendLogMessage(message, LogLevel::Error); }
 
+    /// @brief Handles the close event for the main window.
+    /// @param event the close event.
+    void closeEvent(QCloseEvent* event) override;
+
+    // Setting Keys
+    static constexpr const char* KSAMPLECOUNTKEY = "rendering/sampleCount";
+
 private slots:
     void showAboutDialog();
     void showVulkanPropertiesDialog();
     void showPreferencesDialog();
+    void showRenderingOptionsDialog();
 
 private:
+    void loadSettings();
+    void saveSettings();
+
     void createVulkanWindow(QString& infoLogMessage, QString& warnLogMessage, QString& errorLogMessage);
     void createCentralWidget();
     void createActions();
     void createFileMenu();
     void createHelpMenu();
     void createEditMenu();
+    void createOptionsMenu();
 
     void appendLogMessage(const QString& message, LogLevel level);
     void logSelectedGpuInfo();
 
     QVulkanWindow* m_vulkanWindow = nullptr;
     QVulkanInstance* m_vulkanInstance = nullptr;
-    int m_selectedGpuIndex;
+    int m_selectedGpuIndex = -1;
+    bool m_darkMode = false;
+
+    // Settings
+    int m_sampleCount = VK_SAMPLE_COUNT_1_BIT;
 
     QWidget* m_centralWidget = nullptr;
     QVBoxLayout* m_mainLayout = nullptr;
@@ -71,6 +89,7 @@ private:
     QMenu* m_fileMenu = nullptr;
     QMenu* m_helpMenu = nullptr;
     QMenu* m_editMenu = nullptr;
+    QMenu* m_optionsMenu = nullptr;
 
     // File menu actions
     QAction* m_closeAction = nullptr;
@@ -83,7 +102,11 @@ private:
     // Edit menu actions
     QAction* m_preferencesAction = nullptr;
 
+    // Options menu actions
+    QAction* m_renderingOptionsAction = nullptr;
+
     QMessageBox* m_vulkanPropertiesDialog = nullptr;
     QDialog* m_preferencesDialog = nullptr;
+    QDialog* m_renderingOptionsDialog = nullptr;
 };
 }

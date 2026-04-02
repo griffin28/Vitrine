@@ -16,16 +16,24 @@
 #include <QFormLayout>
 #include <QLabel>
 #include <QVector>
+#include <QSettings>
+
+#include <algorithm>
 
 namespace myvulkan 
 {
 //----------------------------------------------------------------------------------
-AppMainWindow::AppMainWindow(QVulkanInstance* vulkanInstance, QString vulkanInstanceLogMessage, int gpuIndex, QWidget *parent) 
+AppMainWindow::AppMainWindow(QVulkanInstance* vulkanInstance, QString vulkanInstanceLogMessage, int gpuIndex, bool darkMode, QWidget *parent) 
 : QMainWindow(parent)
 , m_vulkanInstance(vulkanInstance)
 , m_selectedGpuIndex(gpuIndex)
+, m_darkMode(darkMode)
 {
     this->setWindowTitle("Vulkan Sandbox");
+
+    // Load settings
+    this->loadSettings();
+
     QString infoLogMessage, warnLogMessage, errorLogMessage;
     createVulkanWindow(infoLogMessage, warnLogMessage, errorLogMessage);
     this->createCentralWidget();
@@ -33,6 +41,7 @@ AppMainWindow::AppMainWindow(QVulkanInstance* vulkanInstance, QString vulkanInst
     this->createActions();
     this->createFileMenu();
     this->createEditMenu();
+    this->createOptionsMenu();
     this->createHelpMenu();
 
     // Update Log
@@ -50,8 +59,33 @@ AppMainWindow::AppMainWindow(QVulkanInstance* vulkanInstance, QString vulkanInst
 }
 
 //----------------------------------------------------------------------------------
+void AppMainWindow::closeEvent(QCloseEvent* event)
+{
+    this->saveSettings();
+    QMainWindow::closeEvent(event);
+}
+
+//----------------------------------------------------------------------------------
+void AppMainWindow::loadSettings()
+{
+    QSettings settings;
+
+    // Multisampling Anti-aliasing
+    m_sampleCount = settings.value(QString::fromUtf8(KSAMPLECOUNTKEY), VK_SAMPLE_COUNT_1_BIT).toInt();
+}
+
+//----------------------------------------------------------------------------------
+void AppMainWindow::saveSettings()
+{
+    QSettings settings;
+
+    // Multisampling Anti-aliasing
+    settings.setValue(QString::fromUtf8(KSAMPLECOUNTKEY), m_sampleCount);
+}
+
+//----------------------------------------------------------------------------------
 void AppMainWindow::createVulkanWindow(QString &infoLogMessage, QString &warnLogMessage, QString &errorLogMessage)
-{    
+{   
     m_vulkanWindow = new VulkanWindow();
     m_vulkanWindow->setVulkanInstance(m_vulkanInstance);
 
@@ -77,6 +111,27 @@ void AppMainWindow::createVulkanWindow(QString &infoLogMessage, QString &warnLog
         
         m_selectedGpuIndex = AppUtils::pickPhysicalDevice(availableDevices);
         m_vulkanWindow->setPhysicalDeviceIndex(m_selectedGpuIndex);
+    }
+
+    const QList<int> supportedSampleCounts = m_vulkanWindow->supportedSampleCounts();
+    if (!supportedSampleCounts.isEmpty())
+    {
+        int selectedSampleCount = m_sampleCount;
+
+        if (!supportedSampleCounts.contains(selectedSampleCount))
+        {
+            selectedSampleCount = VK_SAMPLE_COUNT_1_BIT;
+            for (const int sampleCount : supportedSampleCounts)
+            {
+                if (sampleCount > selectedSampleCount)
+                {
+                    selectedSampleCount = sampleCount;
+                }
+            }
+        }
+
+        m_sampleCount = selectedSampleCount;
+        m_vulkanWindow->setSampleCount(selectedSampleCount);
     }
 
     // Set optional device extensions
@@ -152,6 +207,17 @@ void AppMainWindow::createActions()
     m_preferencesAction = new QAction(tr("&Preferences..."), this);
     // m_preferencesAction = new QAction(QIcon(":/images/preferences.png"), tr("&Preferences..."), this);
     connect(m_preferencesAction, &QAction::triggered, this, &AppMainWindow::showPreferencesDialog);
+// ":/qdarkstyle/dark/darkstyle.qss"
+    const bool isLightTheme = !m_darkMode;
+    // const QString iconPrefix = isLightTheme
+    //     ? QStringLiteral(":/qss_icons/light")
+    //     : QStringLiteral(":/qss_icons/dark");
+    const QString iconPrefix = QStringLiteral(":/qdarkstyle/dark");
+
+    m_renderingOptionsAction = new QAction(
+        QIcon(iconPrefix + QStringLiteral("rc/toolbar_move_horizontal.png")),
+        tr("&Rendering..."), this);
+    connect(m_renderingOptionsAction, &QAction::triggered, this, &AppMainWindow::showRenderingOptionsDialog);
 }
 
 //----------------------------------------------------------------------------------
@@ -176,6 +242,105 @@ void AppMainWindow::createEditMenu()
 {
     m_editMenu = this->menuBar()->addMenu(tr("&Edit"));
     m_editMenu->addAction(m_preferencesAction);
+}
+
+//----------------------------------------------------------------------------------
+void AppMainWindow::createOptionsMenu()
+{
+    m_optionsMenu = this->menuBar()->addMenu(tr("&Options"));
+    m_optionsMenu->addAction(m_renderingOptionsAction);
+}
+
+//----------------------------------------------------------------------------------
+void AppMainWindow::showRenderingOptionsDialog()
+{
+    if (!m_vulkanWindow)
+    {
+        QMessageBox::warning(this, tr("Rendering Options"), tr("Vulkan window is not available."));
+        return;
+    }
+
+    if (!m_renderingOptionsDialog)
+    {
+        m_renderingOptionsDialog = new QDialog(this);
+        m_renderingOptionsDialog->setWindowTitle(tr("Rendering Options"));
+        m_renderingOptionsDialog->setModal(true);
+
+        auto* mainLayout = new QVBoxLayout(m_renderingOptionsDialog);
+        auto* formLayout = new QFormLayout();
+
+        auto* sampleCountComboBox = new QComboBox(m_renderingOptionsDialog);
+        sampleCountComboBox->setMinimumWidth(160);
+
+        QList<int> supportedSampleCounts = m_vulkanWindow->supportedSampleCounts();
+        std::sort(supportedSampleCounts.begin(), supportedSampleCounts.end(), std::greater<int>());
+        const int currentSampleCount = static_cast<int>(m_vulkanWindow->sampleCountFlagBits());
+
+        for (const int count : supportedSampleCounts)
+        {
+            sampleCountComboBox->addItem(tr("%1x MSAA").arg(count), count);
+            if (count == currentSampleCount)
+            {
+                sampleCountComboBox->setCurrentIndex(sampleCountComboBox->count() - 1);
+            }
+        }
+
+        formLayout->addRow(new QLabel(tr("Sample Count:"), m_renderingOptionsDialog), sampleCountComboBox);
+        mainLayout->addLayout(formLayout);
+
+        auto* buttonBox = new QDialogButtonBox(
+            QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+            Qt::Horizontal,
+            m_renderingOptionsDialog);
+        connect(buttonBox, &QDialogButtonBox::accepted, m_renderingOptionsDialog, &QDialog::accept);
+        connect(buttonBox, &QDialogButtonBox::rejected, m_renderingOptionsDialog, &QDialog::reject);
+        mainLayout->addWidget(buttonBox);
+
+        connect(m_renderingOptionsDialog, &QDialog::accepted, this, [this, sampleCountComboBox]() {
+            if (!m_vulkanWindow || !sampleCountComboBox)
+            {
+                return;
+            }
+            const int selectedCount = sampleCountComboBox->currentData().toInt();
+            const int activeCount = static_cast<int>(m_vulkanWindow->sampleCountFlagBits());
+
+            if (selectedCount != activeCount)
+            {
+                m_sampleCount = selectedCount;
+
+                if (m_vulkanWindow->isValid())
+                {
+                    this->appendWarningLogMessage(
+                        tr("Multisampling Anti-Aliasing change to %1x MSAA. Restart the app to apply it.")
+                            .arg(selectedCount));
+                }
+                else
+                {
+                    m_vulkanWindow->setSampleCount(selectedCount);
+                    this->appendInfoLogMessage(tr("Rendering sample count set to %1x MSAA").arg(selectedCount));
+                }
+            }
+        });
+    }
+    // else
+    // {
+    //     // Refresh combo selection to reflect any externally applied changes.
+    //     auto* sampleCountComboBox = m_renderingOptionsDialog->findChild<QComboBox*>();
+    //     if (sampleCountComboBox)
+    //     {
+    //         const int activeCount = static_cast<int>(m_vulkanWindow->sampleCountFlagBits());
+    //         for (int i = 0; i < sampleCountComboBox->count(); ++i)
+    //         {
+    //             if (sampleCountComboBox->itemData(i).toInt() == activeCount)
+    //             {
+    //                 sampleCountComboBox->setCurrentIndex(i);
+    //                 break;
+    //             }
+    //         }
+    //     }
+    // }
+
+    m_renderingOptionsDialog->show();
 }
 
 //----------------------------------------------------------------------------------

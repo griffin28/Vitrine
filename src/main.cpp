@@ -14,6 +14,10 @@ constexpr bool enableValidationLayers = false;
 constexpr bool enableValidationLayers = true;
 #endif
 
+constexpr const char* KSETTINGSORG = "KSG-Technology-Consulting";
+constexpr const char* KSETTINGDOMAIN = "ksgtechconsulting.com";
+constexpr const char* KSETTINGSAPP = "VulkanSandbox";
+
 constexpr int WINDOW_WIDTH = 800;
 constexpr int WINDOW_HEIGHT = 600;
 
@@ -53,6 +57,10 @@ int main(int argc, char *argv[])
     } else {
         AppUtils::applyLightMode(app);
     }
+
+    QApplication::setOrganizationName(KSETTINGSORG);
+    QApplication::setOrganizationDomain(KSETTINGDOMAIN);
+    QApplication::setApplicationName(KSETTINGSAPP);
 
     QVulkanInstance vulkanInstance;
     QString logMessages;

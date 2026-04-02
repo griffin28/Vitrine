@@ -36,14 +36,17 @@ public:
     /// @see QVulkanWindowRenderer::startNextFrame
     void startNextFrame() override;
 
+    /// @brief Get the size of the vertex buffer
     size_t getVertexBufferSize() const { return sizeof(Vertex) * m_vertices.size(); }
+
+    /// @brief Get the size of the index buffer
     size_t getIndexBufferSize() const { return sizeof(uint32_t) * m_indices.size(); }
 
 private:
     QVulkanWindow* m_window = nullptr;
     VkPipelineLayout* m_pipelineLayout = nullptr;
     VkPipeline* m_graphicsPipeline = nullptr;
-
+    
     std::vector<Vertex> m_vertices;
     VkBuffer* m_vertexBuffer = nullptr;
     VkDeviceMemory* m_vertexBufferMemory = nullptr;
@@ -73,13 +76,13 @@ private:
                              VkFormat format, 
                              VkImageAspectFlags aspectFlags, 
                              VkImageView& imageView);
-    VkResult createImage(uint32_t width, uint32_t height, 
-                    VkFormat format, 
-                    VkImageTiling tiling, 
-                    VkImageUsageFlags usage, 
-                    VkMemoryPropertyFlags properties, 
-                    VkImage& image, 
-                    VkDeviceMemory& imageMemory);
+    VkResult createImage(uint32_t width, uint32_t height,
+                         VkFormat format, 
+                         VkImageTiling tiling, 
+                         VkImageUsageFlags usage, 
+                         VkMemoryPropertyFlags properties, 
+                         VkImage& image, 
+                         VkDeviceMemory& imageMemory);
     void createVertexBuffer();
     void createIndexBuffer();
     void createUniformBuffers();
@@ -104,5 +107,7 @@ private:
     VkResult copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
     VkResult copyBufferToImage(const VkBuffer& buffer, VkImage& image, uint32_t width, uint32_t height);
     VkResult transitionImageLayout(VkImage& image, VkImageLayout oldLayout, VkImageLayout newLayout);
+
+    VkSampleCountFlagBits getMaxUsableSampleCount();
 };
 }  // namespace myvulkan

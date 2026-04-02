@@ -27,6 +27,19 @@ namespace myvulkan
 //----------------------------------------------------------------------------------
 void VulkanRenderer::initResources() 
 {
+    // Multisampling
+    // setSampleCount() must take effect before QVulkanWindow builds the default render
+    // pass and framebuffers.  If the desired count differs from the current one, request
+    // the change here and return immediately: QVulkanWindow will reset the swap chain and
+    // invoke initResources() again, by which point defaultRenderPass() will already carry
+    // the correct sample count and attachment layout.
+    const VkSampleCountFlagBits msaaSamples = m_window->sampleCountFlagBits();
+    // if (msaaSamples != m_window->sampleCountFlagBits())
+    // {
+    //     m_window->setSampleCount(static_cast<int>(msaaSamples));
+    //     return;
+    // }
+
     // Create shader module
     const QString appDir = qApp->applicationDirPath(); 
     const QString fragPath = QDir(appDir).filePath("shaders/frag.spv");
@@ -111,7 +124,7 @@ void VulkanRenderer::initResources()
     // Multisampling
     VkPipelineMultisampleStateCreateInfo multisampling{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+        .rasterizationSamples = msaaSamples,
         .sampleShadingEnable = VK_FALSE,
         .minSampleShading = 1.0f,
         .pSampleMask = nullptr,
@@ -422,6 +435,30 @@ void VulkanRenderer::releaseSwapChainResources()
     // Release swapchain-dependent resources here if needed.
 }
 
+//-----------------------------------------------------------------------------
+VkSampleCountFlagBits VulkanRenderer::getMaxUsableSampleCount()
+{
+    auto sampleCounts = m_window->supportedSampleCounts();
+    int maxCount = 1;
+
+    for(int count: sampleCounts)
+    {
+        if(count > maxCount)
+        {
+            maxCount = count;
+        }
+    }
+
+    if (maxCount & VK_SAMPLE_COUNT_64_BIT) { return VK_SAMPLE_COUNT_64_BIT; }
+    if (maxCount & VK_SAMPLE_COUNT_32_BIT) { return VK_SAMPLE_COUNT_32_BIT; }
+    if (maxCount & VK_SAMPLE_COUNT_16_BIT) { return VK_SAMPLE_COUNT_16_BIT; }
+    if (maxCount & VK_SAMPLE_COUNT_8_BIT) { return VK_SAMPLE_COUNT_8_BIT; }
+    if (maxCount & VK_SAMPLE_COUNT_4_BIT) { return VK_SAMPLE_COUNT_4_BIT; }
+    if (maxCount & VK_SAMPLE_COUNT_2_BIT) { return VK_SAMPLE_COUNT_2_BIT; }
+
+    return VK_SAMPLE_COUNT_1_BIT;
+}
+
 //----------------------------------------------------------------------------------
 // Wait for the previous frame to finish
 // Acquire an image from the swap chain
@@ -457,10 +494,25 @@ void VulkanRenderer::recordCommandBuffer()
 
     // Setup Color Attachment
     auto swapChainImageSize = m_window->swapChainImageSize();
+    uint32_t clearValuesCount = 2;
 
-    VkClearValue clearValues[2];
-    clearValues[0].color = VkClearColorValue{ .float32 = {0.0f, 0.0f, 0.0f, 1.0f} };
-    clearValues[1].depthStencil = VkClearDepthStencilValue{ .depth = 1.0f, .stencil = 0 };
+    if(m_window->sampleCountFlagBits() > VK_SAMPLE_COUNT_1_BIT)
+    {
+        clearValuesCount = 3;
+    }
+
+    VkClearValue clearValues[clearValuesCount];
+    for(uint32_t i=0; i<clearValuesCount; ++i)
+    {
+        if(i == 0 || i == 2)
+        {
+            clearValues[i].color = VkClearColorValue{ .float32 = {0.0f, 0.0f, 0.0f, 1.0f} };
+        }
+        else
+        {
+            clearValues[i].depthStencil = VkClearDepthStencilValue{ .depth = 1.0f, .stencil = 0 };
+        }
+    }
     
     VkRenderPassBeginInfo renderPassInfo = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -470,7 +522,7 @@ void VulkanRenderer::recordCommandBuffer()
             .offset = {0, 0},
             .extent = {.width = static_cast<uint32_t>(swapChainImageSize.width()), .height = static_cast<uint32_t>(swapChainImageSize.height())}
         },
-        .clearValueCount = 2,
+        .clearValueCount = clearValuesCount,
         .pClearValues = clearValues
     };
 
@@ -738,7 +790,7 @@ VkResult VulkanRenderer::createTextureImage(const QString& texturePath,
     stbi_image_free(pixels);
 
     result = this->createImage(static_cast<uint32_t>(texWidth), 
-                               static_cast<uint32_t>(texHeight), 
+                               static_cast<uint32_t>(texHeight),
                                VK_FORMAT_R8G8B8A8_SRGB, 
                                VK_IMAGE_TILING_OPTIMAL, 
                                VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 
