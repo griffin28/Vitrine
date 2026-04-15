@@ -31,7 +31,7 @@ AppMainWindow::AppMainWindow(QVulkanInstance* vulkanInstance, QString vulkanInst
 {
     this->setWindowTitle("Vulkan Sandbox");
 
-    // Load settings
+    // Load saved UI settings
     this->loadSettings();
 
     QString infoLogMessage, warnLogMessage, errorLogMessage;
@@ -69,18 +69,24 @@ void AppMainWindow::closeEvent(QCloseEvent* event)
 void AppMainWindow::loadSettings()
 {
     QSettings settings;
+    settings.beginGroup("AppMainWindow");
 
     // Multisampling Anti-aliasing
-    m_sampleCount = settings.value(QString::fromUtf8(KSAMPLECOUNTKEY), VK_SAMPLE_COUNT_1_BIT).toInt();
+    m_sampleCount = settings.value(QString::fromUtf8(AppMainWindow::KSAMPLECOUNTKEY), VK_SAMPLE_COUNT_1_BIT).toInt();
+
+    settings.endGroup(); // AppMainWindow
 }
 
 //----------------------------------------------------------------------------------
 void AppMainWindow::saveSettings()
 {
     QSettings settings;
+    settings.beginGroup("AppMainWindow");
 
     // Multisampling Anti-aliasing
-    settings.setValue(QString::fromUtf8(KSAMPLECOUNTKEY), m_sampleCount);
+    settings.setValue(QString::fromUtf8(AppMainWindow::KSAMPLECOUNTKEY), m_sampleCount);
+
+    settings.endGroup(); // AppMainWindow
 }
 
 //----------------------------------------------------------------------------------
@@ -88,6 +94,18 @@ void AppMainWindow::createVulkanWindow(QString &infoLogMessage, QString &warnLog
 {   
     m_vulkanWindow = new VulkanWindow();
     m_vulkanWindow->setVulkanInstance(m_vulkanInstance);
+
+    // Enable device features
+    m_vulkanWindow->setEnabledFeaturesModifier([](VkPhysicalDeviceFeatures& features) {
+        // Enable sample shading if multisampling is supported by the device. This can improve the quality 
+        // of multisampling by allowing the shader to run at a higher frequency than the rasterization samples, 
+        // which can help to reduce aliasing artifacts. However, it can also have a performance impact, 
+        // so it's important to use it judiciously and test the performance implications on the target hardware.
+        features.sampleRateShading = VK_TRUE;
+
+        // Enable anisotropic filtering for better texture quality at oblique angles
+        features.samplerAnisotropy = VK_TRUE;
+    });
 
     auto availableDevices = m_vulkanWindow->availablePhysicalDevices();
     if(availableDevices.isEmpty()) 
@@ -112,7 +130,7 @@ void AppMainWindow::createVulkanWindow(QString &infoLogMessage, QString &warnLog
         m_selectedGpuIndex = AppUtils::pickPhysicalDevice(availableDevices);
         m_vulkanWindow->setPhysicalDeviceIndex(m_selectedGpuIndex);
     }
-
+    
     const QList<int> supportedSampleCounts = m_vulkanWindow->supportedSampleCounts();
     if (!supportedSampleCounts.isEmpty())
     {
@@ -136,16 +154,18 @@ void AppMainWindow::createVulkanWindow(QString &infoLogMessage, QString &warnLog
 
     // Set optional device extensions
     auto supportedExtensions = m_vulkanWindow->supportedDeviceExtensions();
-    auto requestedExtensions = QByteArrayList{"VK_KHR_spirv_1_4", "VK_KHR_shader_float_controls"};
+    auto requiredExtensions = QByteArrayList{VK_KHR_SPIRV_1_4_EXTENSION_NAME,
+                                             VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME};
     QByteArrayList validatedExtensions;
+    QByteArrayList unsupportedExtensions;
 
-    for(const auto& ext : requestedExtensions) 
+    for(const auto& ext : requiredExtensions) 
     {
         if (std::find_if(supportedExtensions.begin(), supportedExtensions.end(), [&ext](const auto& supportedExt) { return std::strcmp(supportedExt.name, ext.constData()) == 0; }) != supportedExtensions.end()) 
         {
             validatedExtensions.append(ext);
         } else {
-            warnLogMessage.append(tr("Optional device extension %1 not supported. Running without it.").arg(QString::fromUtf8(ext)));
+            unsupportedExtensions.append(ext);
         }
     }
 
@@ -154,6 +174,11 @@ void AppMainWindow::createVulkanWindow(QString &infoLogMessage, QString &warnLog
         m_vulkanWindow->setDeviceExtensions(validatedExtensions);
         // TODO: update m_vulkanWindow to support setting device features based on enabled extensions
         infoLogMessage.append(tr("Enabled device extensions: %1").arg(validatedExtensions.join(", ")));
+    }
+
+    if(!unsupportedExtensions.isEmpty()) 
+    {
+        errorLogMessage.append(tr("Required device extensions not supported: %1").arg(unsupportedExtensions.join(", ")));
     }
 }
 
@@ -285,7 +310,9 @@ void AppMainWindow::showRenderingOptionsDialog()
             }
         }
 
-        formLayout->addRow(new QLabel(tr("Sample Count:"), m_renderingOptionsDialog), sampleCountComboBox);
+        QLabel* msaaLabel = new QLabel(tr("MSAA Sample Count:"), m_renderingOptionsDialog);
+        msaaLabel->setToolTip(tr("Multisampling Anti-Aliasing. Changes will take effect after restarting the application."));
+        formLayout->addRow(msaaLabel, sampleCountComboBox);
         mainLayout->addLayout(formLayout);
 
         auto* buttonBox = new QDialogButtonBox(
@@ -322,23 +349,6 @@ void AppMainWindow::showRenderingOptionsDialog()
             }
         });
     }
-    // else
-    // {
-    //     // Refresh combo selection to reflect any externally applied changes.
-    //     auto* sampleCountComboBox = m_renderingOptionsDialog->findChild<QComboBox*>();
-    //     if (sampleCountComboBox)
-    //     {
-    //         const int activeCount = static_cast<int>(m_vulkanWindow->sampleCountFlagBits());
-    //         for (int i = 0; i < sampleCountComboBox->count(); ++i)
-    //         {
-    //             if (sampleCountComboBox->itemData(i).toInt() == activeCount)
-    //             {
-    //                 sampleCountComboBox->setCurrentIndex(i);
-    //                 break;
-    //             }
-    //         }
-    //     }
-    // }
 
     m_renderingOptionsDialog->show();
 }

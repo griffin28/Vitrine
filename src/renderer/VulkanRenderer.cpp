@@ -125,8 +125,8 @@ void VulkanRenderer::initResources()
     VkPipelineMultisampleStateCreateInfo multisampling{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
         .rasterizationSamples = msaaSamples,
-        .sampleShadingEnable = VK_FALSE,
-        .minSampleShading = 1.0f,
+        .sampleShadingEnable = VK_TRUE,
+        .minSampleShading = 0.3f,
         .pSampleMask = nullptr,
         .alphaToCoverageEnable = VK_FALSE,
         .alphaToOneEnable = VK_FALSE
@@ -468,16 +468,16 @@ VkSampleCountFlagBits VulkanRenderer::getMaxUsableSampleCount()
 //
 void VulkanRenderer::startNextFrame() 
 {
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
+    // auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
     
     // QVulkanWindow performs acquire/submit/present internally after frameReady().
     // Waiting for the graphics queue here avoids reusing present wait semaphores
     // while they may still be pending in the presentation engine.
-    if (devFuncs->vkQueueWaitIdle(m_window->graphicsQueue()) != VK_SUCCESS)
-    {
-        qWarning() << "Failed to wait for graphics queue idle";
-        return;
-    }
+    // if (devFuncs->vkQueueWaitIdle(m_window->graphicsQueue()) != VK_SUCCESS)
+    // {
+    //     qWarning() << "Failed to wait for graphics queue idle";
+    //     return;
+    // }
 
     this->updateUniformBuffer();
     this->recordCommandBuffer();
@@ -513,6 +513,40 @@ void VulkanRenderer::recordCommandBuffer()
             clearValues[i].depthStencil = VkClearDepthStencilValue{ .depth = 1.0f, .stencil = 0 };
         }
     }
+
+    // VkClearValue clearColor = { .color = VkClearColorValue{ .float32 = {0.0f, 0.0f, 0.0f, 1.0f} } };
+    // VkClearValue clearDepthStencil = { .depthStencil = VkClearDepthStencilValue{ .depth = 1.0f, .stencil = 0 } };
+
+    // VkRenderingAttachmentInfo colorAttachmentInfo{
+    //     .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+    //     .imageView = m_window->swapChainImageView(m_window->currentSwapChainImageIndex()),
+    //     .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+    //     .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+    //     .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+    //     .clearValue = clearColor
+    // };
+
+    // VkRenderingAttachmentInfo depthAttachmentInfo{
+    //     .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+    //     .imageView = m_window->depthStencilImageView(),
+    //     .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+    //     .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+    //     .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+    //     .clearValue = clearDepthStencil
+    // };
+
+    // VkRenderingInfo renderingInfo{
+    //     .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+    //     .renderArea = {
+    //         .offset = {0, 0},
+    //         .extent = {.width = static_cast<uint32_t>(swapChainImageSize.width()), .height = static_cast<uint32_t>(swapChainImageSize.height())}
+    //     },
+    //     .layerCount = 1,
+    //     .viewMask = 0,
+    //     .colorAttachmentCount = 1,
+    //     .pColorAttachments = &colorAttachmentInfo,
+    //     .pDepthAttachment = &depthAttachmentInfo,
+    // };
     
     VkRenderPassBeginInfo renderPassInfo = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -527,6 +561,8 @@ void VulkanRenderer::recordCommandBuffer()
     };
 
     auto commandBuffer = m_window->currentCommandBuffer();
+    // auto vkCmdBeginRendering = reinterpret_cast<PFN_vkCmdBeginRendering>(m_window->vulkanInstance()->getInstanceProcAddr("vkCmdBeginRendering"));
+    // vkCmdBeginRendering(commandBuffer, &renderingInfo);
     devFuncs->vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     devFuncs->vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_graphicsPipeline);
 
@@ -557,6 +593,8 @@ void VulkanRenderer::recordCommandBuffer()
     devFuncs->vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_indices.size()), 1, 0, 0, 0);
 
     devFuncs->vkCmdEndRenderPass(commandBuffer);
+    // auto vkCmdEndRendering = reinterpret_cast<PFN_vkCmdEndRendering>(m_window->vulkanInstance()->getInstanceProcAddr("vkCmdEndRendering"));
+    // vkCmdEndRendering(commandBuffer);
 }
 
 //----------------------------------------------------------------------------------

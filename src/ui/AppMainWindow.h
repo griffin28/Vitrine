@@ -49,9 +49,9 @@ public:
     /// @brief Handles the close event for the main window.
     /// @param event the close event.
     void closeEvent(QCloseEvent* event) override;
-
+    
     // Setting Keys
-    static constexpr const char* KSAMPLECOUNTKEY = "rendering/sampleCount";
+    static constexpr const char* KSAMPLECOUNTKEY = "options/rendering/sampleCount";
 
 private slots:
     void showAboutDialog();

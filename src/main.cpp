@@ -26,6 +26,53 @@ const QByteArrayList validationLayers = {
 };
 
 using AppUtils = myvulkan::AppUtils;
+using AppMainWindow = myvulkan::AppMainWindow;
+
+// Debug output filter for Vulkan validation layer messages
+bool debugOutputFilter(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType, uint64_t object,
+                       size_t location, int32_t messageCode, const char *pLayerPrefix, const char *pMessage)
+{
+    QString logMessage = QString::fromUtf8(pMessage);
+    QString layerPrefix = QString::fromUtf8(pLayerPrefix);
+
+    if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) 
+    {
+        // Append validation layer error messages to the log panel with ERROR level
+        auto errorLogMessage = QString("%1::Validation Layer ERROR: %2").arg(layerPrefix).arg(logMessage);
+        QMetaObject::invokeMethod(qApp->activeWindow(), [errorLogMessage]() {
+            auto mainWindow = qobject_cast<AppMainWindow*>(qApp->activeWindow());
+            if (mainWindow) {
+                mainWindow->appendErrorLogMessage(errorLogMessage);
+            }
+        });
+    } else if (flags & VK_DEBUG_REPORT_WARNING_BIT_EXT) 
+    {
+        // Append validation layer warning messages to the log panel with WARNING level
+        auto warnLogMessage = QString("%1::Validation Layer WARNING: %2").arg(layerPrefix).arg(logMessage);
+        QMetaObject::invokeMethod(qApp->activeWindow(), [warnLogMessage]() {
+            auto mainWindow = qobject_cast<AppMainWindow*>(qApp->activeWindow());
+            if (mainWindow) {
+                mainWindow->appendWarningLogMessage(warnLogMessage);
+            }
+        });
+    } else {
+        // Append validation layer info messages to the log panel with INFO level
+        auto additionalInfo = QString("Additional Info: %1, %2, %3, %4")
+                                .arg(objectType)
+                                .arg(object)
+                                .arg(location)
+                                .arg(messageCode);
+        auto infoLogMessage = QString("%1::Validation Layer INFO: %2 %3").arg(layerPrefix).arg(logMessage).arg(additionalInfo);
+        QMetaObject::invokeMethod(qApp->activeWindow(), [infoLogMessage]() {
+            auto mainWindow = qobject_cast<AppMainWindow*>(qApp->activeWindow());
+            if (mainWindow) {
+                mainWindow->appendInfoLogMessage(infoLogMessage);
+            }
+        });
+    }
+
+    return false;
+}
 
 int main(int argc, char *argv[]) 
 {
@@ -82,7 +129,7 @@ int main(int argc, char *argv[])
             }
 
             if (!layerFound) {
-                logMessages.append(QString("Validation layer '%1' not found.").arg(layerName.constData()));
+                logMessages.append(QString("Validation layer '%1' not found. ").arg(layerName.constData()));
             }
         }
 
@@ -92,6 +139,19 @@ int main(int argc, char *argv[])
         }
         else 
         {
+            // Add debug utils extension if validation layers are enabled
+            auto supportedExtensions = vulkanInstance.supportedExtensions();
+
+            if (supportedExtensions.contains(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) 
+            {
+                vulkanInstance.setExtensions(QByteArrayList() << VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+                logMessages.append(QString("Enabling extension: %1. ").arg(VK_EXT_DEBUG_UTILS_EXTENSION_NAME));
+                vulkanInstance.installDebugOutputFilter(debugOutputFilter);
+            } else 
+            {
+                logMessages.append(QString("Extension %1 not supported. Running without it. ").arg(VK_EXT_DEBUG_UTILS_EXTENSION_NAME));
+            }
+
             logMessages.append(QString("Enabling validation layers: %1").arg(validLayers.join(", ")));
             vulkanInstance.setLayers(validLayers);
         }
@@ -103,7 +163,7 @@ int main(int argc, char *argv[])
     if (supportedApiVersion >= QVersionNumber(1,4)) 
     {
         vulkanInstance.setApiVersion(QVersionNumber(1, 4));
-        logMessages.append(QString("; Requesting Vulkan API version 1.4. Supported version: %1.%2.%3")
+        logMessages.append(QString(". Requesting Vulkan API version 1.4. Supported version: %1.%2.%3")
                           .arg(supportedApiVersion.majorVersion())
                           .arg(supportedApiVersion.minorVersion())
                           .arg(supportedApiVersion.microVersion()));

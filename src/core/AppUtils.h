@@ -109,7 +109,7 @@ public:
     /// @param availableDevices a list of available Vulkan physical devices and their properties
     /// @return device index of the selected physical device
     /// @throws std::runtime_error if no suitable device is found
-    static inline int pickPhysicalDevice(const QList<VkPhysicalDeviceProperties> &availableDevices) 
+    static inline int pickPhysicalDevice(const QList<VkPhysicalDeviceProperties> &availableDevices)
     {
         if (availableDevices.isEmpty()) {
             throw std::runtime_error("No Vulkan-compatible physical devices found.");
@@ -117,7 +117,7 @@ public:
 
         for(int i = 0; i < availableDevices.size(); ++i) 
         {
-            bool supportsVulkan1_3 = availableDevices[i].apiVersion >= VK_API_VERSION_1_3;
+            const bool supportsVulkan1_3 = availableDevices[i].apiVersion >= VK_API_VERSION_1_3;
 
             // pick an NVIDIA GPU if available
             if (supportsVulkan1_3 && availableDevices[i].vendorID == 0x10DE) // NVIDIA's vendor ID
@@ -128,7 +128,9 @@ public:
 
         // If no NVIDIA GPU found, just return the first device that supports Vulkan 1.3
         for (int i = 0; i < availableDevices.size(); ++i) {
-            if (availableDevices[i].apiVersion >= VK_API_VERSION_1_3) {
+            const bool supportsVulkan1_3 = availableDevices[i].apiVersion >= VK_API_VERSION_1_3;
+            
+            if (supportsVulkan1_3) {
                 return i;
             }
         }
