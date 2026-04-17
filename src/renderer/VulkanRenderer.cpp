@@ -27,6 +27,12 @@ namespace myvulkan
 //----------------------------------------------------------------------------------
 void VulkanRenderer::initResources() 
 {
+    m_devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
+    if (!m_devFuncs) 
+    {
+        throw std::runtime_error("Failed to load Vulkan device functions.");
+    }
+    
     // Multisampling
     // setSampleCount() must take effect before QVulkanWindow builds the default render
     // pass and framebuffers.  If the desired count differs from the current one, request
@@ -184,10 +190,9 @@ void VulkanRenderer::initResources()
         .pBindings = bindings.data()
     };
 
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
     m_descriptorSetLayout = new VkDescriptorSetLayout;
     
-    VkResult result = devFuncs->vkCreateDescriptorSetLayout(m_window->device(), &descriptorSetLayoutInfo, nullptr, m_descriptorSetLayout);
+    VkResult result = m_devFuncs->vkCreateDescriptorSetLayout(m_window->device(), &descriptorSetLayoutInfo, nullptr, m_descriptorSetLayout);
     if (result != VK_SUCCESS) 
     {
         qWarning() << "Failed to create descriptor set layout, VkResult:" << result;
@@ -203,7 +208,7 @@ void VulkanRenderer::initResources()
     };
 
     m_pipelineLayout = new VkPipelineLayout;
-    result = devFuncs->vkCreatePipelineLayout(m_window->device(), &pipelineLayoutInfo, nullptr, m_pipelineLayout);
+    result = m_devFuncs->vkCreatePipelineLayout(m_window->device(), &pipelineLayoutInfo, nullptr, m_pipelineLayout);
     if (result != VK_SUCCESS) 
     {
         qWarning() << "Failed to create pipeline layout, VkResult:" << result;
@@ -230,7 +235,7 @@ void VulkanRenderer::initResources()
     };
 
     m_graphicsPipeline = new VkPipeline;
-    result = devFuncs->vkCreateGraphicsPipelines(m_window->device(), VK_NULL_HANDLE, 1, &graphicsPipelineInfo, nullptr, m_graphicsPipeline);
+    result = m_devFuncs->vkCreateGraphicsPipelines(m_window->device(), VK_NULL_HANDLE, 1, &graphicsPipelineInfo, nullptr, m_graphicsPipeline);
     if (result != VK_SUCCESS) 
     {
         qWarning() << "Failed to create graphics pipeline, VkResult:" << result;
@@ -238,8 +243,8 @@ void VulkanRenderer::initResources()
     }
 
     // Delete shader modules
-    devFuncs->vkDestroyShaderModule(m_window->device(), vertShaderModule, nullptr);
-    devFuncs->vkDestroyShaderModule(m_window->device(), fragShaderModule, nullptr);
+    m_devFuncs->vkDestroyShaderModule(m_window->device(), vertShaderModule, nullptr);
+    m_devFuncs->vkDestroyShaderModule(m_window->device(), fragShaderModule, nullptr);
 
     // Create Texture Image
     const QString texturePath = QDir(appDir).filePath("textures/viking_room.png");
@@ -292,9 +297,7 @@ void VulkanRenderer::initResources()
 //----------------------------------------------------------------------------------
 void VulkanRenderer::releaseResources() 
 {
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
-
-    if(devFuncs->vkDeviceWaitIdle(m_window->device()) != VK_SUCCESS)
+    if(m_devFuncs->vkDeviceWaitIdle(m_window->device()) != VK_SUCCESS)
     {
         qWarning() << "Failed to wait for device idle";
     }
@@ -302,7 +305,7 @@ void VulkanRenderer::releaseResources()
     // Graphics Pipeline
     if(m_graphicsPipeline) 
     {
-        devFuncs->vkDestroyPipeline(m_window->device(), *m_graphicsPipeline, nullptr);
+        m_devFuncs->vkDestroyPipeline(m_window->device(), *m_graphicsPipeline, nullptr);
         delete m_graphicsPipeline;
         m_graphicsPipeline = nullptr;
     }
@@ -310,7 +313,7 @@ void VulkanRenderer::releaseResources()
     // Pipeline Layout
     if(m_pipelineLayout) 
     {
-        devFuncs->vkDestroyPipelineLayout(m_window->device(), *m_pipelineLayout, nullptr);
+        m_devFuncs->vkDestroyPipelineLayout(m_window->device(), *m_pipelineLayout, nullptr);
         delete m_pipelineLayout;
         m_pipelineLayout = nullptr;
     }
@@ -318,14 +321,14 @@ void VulkanRenderer::releaseResources()
     // Vertex Buffer
     if(m_vertexBuffer) 
     {
-        devFuncs->vkDestroyBuffer(m_window->device(), *m_vertexBuffer, nullptr);
+        m_devFuncs->vkDestroyBuffer(m_window->device(), *m_vertexBuffer, nullptr);
         delete m_vertexBuffer;
         m_vertexBuffer = nullptr;   
     }
 
     if(m_vertexBufferMemory) 
     {
-        devFuncs->vkFreeMemory(m_window->device(), *m_vertexBufferMemory, nullptr);
+        m_devFuncs->vkFreeMemory(m_window->device(), *m_vertexBufferMemory, nullptr);
         delete m_vertexBufferMemory;
         m_vertexBufferMemory = nullptr;
     }
@@ -333,14 +336,14 @@ void VulkanRenderer::releaseResources()
     // Index Buffer
     if(m_indexBuffer) 
     {
-        devFuncs->vkDestroyBuffer(m_window->device(), *m_indexBuffer, nullptr);
+        m_devFuncs->vkDestroyBuffer(m_window->device(), *m_indexBuffer, nullptr);
         delete m_indexBuffer;
         m_indexBuffer = nullptr;
     }
 
     if(m_indexBufferMemory) 
     {
-        devFuncs->vkFreeMemory(m_window->device(), *m_indexBufferMemory, nullptr);
+        m_devFuncs->vkFreeMemory(m_window->device(), *m_indexBufferMemory, nullptr);
         delete m_indexBufferMemory;
         m_indexBufferMemory = nullptr;
     }
@@ -350,14 +353,14 @@ void VulkanRenderer::releaseResources()
     {
         if (m_uniformBuffers[i]) 
         {
-            devFuncs->vkDestroyBuffer(m_window->device(), *m_uniformBuffers[i], nullptr);
+            m_devFuncs->vkDestroyBuffer(m_window->device(), *m_uniformBuffers[i], nullptr);
             delete m_uniformBuffers[i];
             m_uniformBuffers[i] = nullptr;
         }
 
         if (m_uniformBuffersMemory[i]) 
         {
-            devFuncs->vkFreeMemory(m_window->device(), *m_uniformBuffersMemory[i], nullptr);
+            m_devFuncs->vkFreeMemory(m_window->device(), *m_uniformBuffersMemory[i], nullptr);
             delete m_uniformBuffersMemory[i];
             m_uniformBuffersMemory[i] = nullptr;
         }
@@ -371,14 +374,14 @@ void VulkanRenderer::releaseResources()
     // Descriptor Pool and Sets
     if (m_descriptorPool) 
     {
-        devFuncs->vkDestroyDescriptorPool(m_window->device(), *m_descriptorPool, nullptr);
+        m_devFuncs->vkDestroyDescriptorPool(m_window->device(), *m_descriptorPool, nullptr);
         delete m_descriptorPool;
         m_descriptorPool = nullptr;
     }
 
     if (m_descriptorSetLayout) 
     {
-        devFuncs->vkDestroyDescriptorSetLayout(m_window->device(), *m_descriptorSetLayout, nullptr);
+        m_devFuncs->vkDestroyDescriptorSetLayout(m_window->device(), *m_descriptorSetLayout, nullptr);
         delete m_descriptorSetLayout;
         m_descriptorSetLayout = nullptr;    
     }
@@ -386,28 +389,28 @@ void VulkanRenderer::releaseResources()
     // Texture Resources
     if (m_textureImage) 
     {
-        devFuncs->vkDestroyImage(m_window->device(), *m_textureImage, nullptr);
+        m_devFuncs->vkDestroyImage(m_window->device(), *m_textureImage, nullptr);
         delete m_textureImage;
         m_textureImage = nullptr;
     }
 
     if (m_textureImageMemory) 
     {
-        devFuncs->vkFreeMemory(m_window->device(), *m_textureImageMemory, nullptr);
+        m_devFuncs->vkFreeMemory(m_window->device(), *m_textureImageMemory, nullptr);
         delete m_textureImageMemory;
         m_textureImageMemory = nullptr;
     }
 
     if (m_textureImageView) 
     {
-        devFuncs->vkDestroyImageView(m_window->device(), *m_textureImageView, nullptr);
+        m_devFuncs->vkDestroyImageView(m_window->device(), *m_textureImageView, nullptr);
         delete m_textureImageView;
         m_textureImageView = nullptr;
     }
 
     if (m_textureSampler) 
     {
-        devFuncs->vkDestroySampler(m_window->device(), *m_textureSampler, nullptr);
+        m_devFuncs->vkDestroySampler(m_window->device(), *m_textureSampler, nullptr);
         delete m_textureSampler;
         m_textureSampler = nullptr;
     }
@@ -467,13 +470,11 @@ VkSampleCountFlagBits VulkanRenderer::getMaxUsableSampleCount()
 // Present the swap chain image
 //
 void VulkanRenderer::startNextFrame() 
-{
-    // auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
-    
+{   
     // QVulkanWindow performs acquire/submit/present internally after frameReady().
     // Waiting for the graphics queue here avoids reusing present wait semaphores
     // while they may still be pending in the presentation engine.
-    // if (devFuncs->vkQueueWaitIdle(m_window->graphicsQueue()) != VK_SUCCESS)
+    // if (m_devFuncs->vkQueueWaitIdle(m_window->graphicsQueue()) != VK_SUCCESS)
     // {
     //     qWarning() << "Failed to wait for graphics queue idle";
     //     return;
@@ -490,8 +491,6 @@ void VulkanRenderer::startNextFrame()
 //----------------------------------------------------------------------------------
 void VulkanRenderer::recordCommandBuffer()
 {
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
-
     // Setup Color Attachment
     auto swapChainImageSize = m_window->swapChainImageSize();
     uint32_t clearValuesCount = 2;
@@ -563,13 +562,13 @@ void VulkanRenderer::recordCommandBuffer()
     auto commandBuffer = m_window->currentCommandBuffer();
     // auto vkCmdBeginRendering = reinterpret_cast<PFN_vkCmdBeginRendering>(m_window->vulkanInstance()->getInstanceProcAddr("vkCmdBeginRendering"));
     // vkCmdBeginRendering(commandBuffer, &renderingInfo);
-    devFuncs->vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-    devFuncs->vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_graphicsPipeline);
+    m_devFuncs->vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    m_devFuncs->vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_graphicsPipeline);
 
     const VkBuffer vertexBuffers[] = {*m_vertexBuffer};
     const VkDeviceSize offsets[] = {0};
-    devFuncs->vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-    devFuncs->vkCmdBindIndexBuffer(commandBuffer, *m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+    m_devFuncs->vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+    m_devFuncs->vkCmdBindIndexBuffer(commandBuffer, *m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     VkViewport viewPort = {
         .x = 0.0f,
@@ -579,20 +578,20 @@ void VulkanRenderer::recordCommandBuffer()
         .minDepth = 0.0f,
         .maxDepth = 1.0f
     };
-    devFuncs->vkCmdSetViewport(commandBuffer, 0, 1, &viewPort);
+    m_devFuncs->vkCmdSetViewport(commandBuffer, 0, 1, &viewPort);
 
     VkRect2D scissor = {
         .offset = {.x = 0, .y = 0},
         .extent = {.width = static_cast<uint32_t>(swapChainImageSize.width()), .height = static_cast<uint32_t>(swapChainImageSize.height())}
     };
-    devFuncs->vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+    m_devFuncs->vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
     // Draw
-    // devFuncs->vkCmdDraw(commandBuffer, 3, 1, 0, 0);
-    devFuncs->vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_pipelineLayout, 0, 1, &m_descriptorSets[m_window->currentFrame()], 0, nullptr);
-    devFuncs->vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_indices.size()), 1, 0, 0, 0);
+    // m_devFuncs->vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+    m_devFuncs->vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_pipelineLayout, 0, 1, &m_descriptorSets[m_window->currentFrame()], 0, nullptr);
+    m_devFuncs->vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_indices.size()), 1, 0, 0, 0);
 
-    devFuncs->vkCmdEndRenderPass(commandBuffer);
+    m_devFuncs->vkCmdEndRenderPass(commandBuffer);
     // auto vkCmdEndRendering = reinterpret_cast<PFN_vkCmdEndRendering>(m_window->vulkanInstance()->getInstanceProcAddr("vkCmdEndRendering"));
     // vkCmdEndRendering(commandBuffer);
 }
@@ -667,8 +666,7 @@ VkShaderModule VulkanRenderer::createShaderModule(const QString& filePath)
     };
 
     VkShaderModule shaderModule;
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
-    const VkResult result = devFuncs->vkCreateShaderModule(
+    const VkResult result = m_devFuncs->vkCreateShaderModule(
         m_window->device(),
         &createInfo,
         nullptr,
@@ -692,7 +690,6 @@ void VulkanRenderer::createIndexBuffer()
         return;
     }
 
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
     VkDeviceSize bufferSize = this->getIndexBufferSize();
 
     uint32_t memoryTypeIndex = m_window->hostVisibleMemoryIndex();
@@ -719,28 +716,28 @@ void VulkanRenderer::createIndexBuffer()
     }
 
     void* data;
-    result = devFuncs->vkMapMemory(m_window->device(), stagingBufferMemory, 0, bufferSize, 0, &data);
+    result = m_devFuncs->vkMapMemory(m_window->device(), stagingBufferMemory, 0, bufferSize, 0, &data);
     if (result != VK_SUCCESS) 
     {
         qWarning() << "Failed to map staging buffer memory for index data, VkResult:" << result;
-        devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
-        devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
+        m_devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
+        m_devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
         return;
     }
 
     std::memcpy(data, m_indices.data(), static_cast<size_t>(bufferSize));
-    devFuncs->vkUnmapMemory(m_window->device(), stagingBufferMemory);
+    m_devFuncs->vkUnmapMemory(m_window->device(), stagingBufferMemory);
 
     // Index Buffer Creation
     if(m_indexBuffer) 
     {
-        devFuncs->vkDestroyBuffer(m_window->device(), *m_indexBuffer, nullptr);
+        m_devFuncs->vkDestroyBuffer(m_window->device(), *m_indexBuffer, nullptr);
         delete m_indexBuffer;   
     }
 
     if(m_indexBufferMemory) 
     {
-        devFuncs->vkFreeMemory(m_window->device(), *m_indexBufferMemory, nullptr);
+        m_devFuncs->vkFreeMemory(m_window->device(), *m_indexBufferMemory, nullptr);
         delete m_indexBufferMemory;
     }
 
@@ -755,10 +752,10 @@ void VulkanRenderer::createIndexBuffer()
                                 *m_indexBufferMemory);
     if (result != VK_SUCCESS)    {
         qWarning() << "Failed to create index buffer, VkResult:" << result;
-        devFuncs->vkDestroyBuffer(m_window->device(), *m_indexBuffer, nullptr);
-        devFuncs->vkFreeMemory(m_window->device(), *m_indexBufferMemory, nullptr);
-        devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
-        devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
+        m_devFuncs->vkDestroyBuffer(m_window->device(), *m_indexBuffer, nullptr);
+        m_devFuncs->vkFreeMemory(m_window->device(), *m_indexBufferMemory, nullptr);
+        m_devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
+        m_devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
         return;
     }
 
@@ -766,12 +763,12 @@ void VulkanRenderer::createIndexBuffer()
     result = this->copyBuffer(stagingBuffer, *m_indexBuffer, bufferSize);
     if (result != VK_SUCCESS)    {
         qWarning() << "Failed to copy index data from staging buffer to index buffer, VkResult:" << result;
-        devFuncs->vkDestroyBuffer(m_window->device(), *m_indexBuffer, nullptr);
-        devFuncs->vkFreeMemory(m_window->device(), *m_indexBufferMemory, nullptr);
+        m_devFuncs->vkDestroyBuffer(m_window->device(), *m_indexBuffer, nullptr);
+        m_devFuncs->vkFreeMemory(m_window->device(), *m_indexBufferMemory, nullptr);
     }
 
-    devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
-    devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
+    m_devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
+    m_devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
 }
 
 //----------------------------------------------------------------------------------
@@ -811,20 +808,19 @@ VkResult VulkanRenderer::createTextureImage(const QString& texturePath,
         return result;
     }
 
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
     void* data;
-    result = devFuncs->vkMapMemory(m_window->device(), stagingBufferMemory, 0, imageSize, 0, &data);
+    result = m_devFuncs->vkMapMemory(m_window->device(), stagingBufferMemory, 0, imageSize, 0, &data);
     if (result != VK_SUCCESS) 
     {
         qWarning() << "Failed to map staging buffer memory VkResult:" << result;
-        devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
-        devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
+        m_devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
+        m_devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
         stbi_image_free(pixels);
         return result;
     }
 
     std::memcpy(data, pixels, static_cast<size_t>(imageSize));
-    devFuncs->vkUnmapMemory(m_window->device(), stagingBufferMemory);
+    m_devFuncs->vkUnmapMemory(m_window->device(), stagingBufferMemory);
     stbi_image_free(pixels);
 
     result = this->createImage(static_cast<uint32_t>(texWidth), 
@@ -846,16 +842,16 @@ VkResult VulkanRenderer::createTextureImage(const QString& texturePath,
     if (result != VK_SUCCESS)
     {
         qWarning() << "Failed to transition texture image layout to TRANSFER_DST_OPTIMAL, VkResult:" << result;
-        devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
-        devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
+        m_devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
+        m_devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
         return result;
     }
 
     result = this->copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
     if (result != VK_SUCCESS)    {
         qWarning() << "Failed to copy buffer to texture image, VkResult:" << result;
-        devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
-        devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
+        m_devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
+        m_devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
         return result;
     }
 
@@ -868,8 +864,8 @@ VkResult VulkanRenderer::createTextureImage(const QString& texturePath,
     // Generate mipmaps for the texture image
     result = this->generateMipmaps(textureImage, VK_FORMAT_R8G8B8A8_SRGB, static_cast<int32_t>(texWidth), static_cast<int32_t>(texHeight), m_mipLevels);
     
-    devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
-    devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
+    m_devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
+    m_devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
     return result;
 }
 
@@ -908,7 +904,6 @@ VkResult VulkanRenderer::generateMipmaps(VkImage& image, VkFormat imageFormat, i
         }
     };
 
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
     int32_t mipWidth = texWidth;
     int32_t mipHeight = texHeight;
 
@@ -920,7 +915,7 @@ VkResult VulkanRenderer::generateMipmaps(VkImage& image, VkFormat imageFormat, i
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 
-        devFuncs->vkCmdPipelineBarrier(
+        m_devFuncs->vkCmdPipelineBarrier(
             commandBuffer,
             VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
             0,
@@ -952,7 +947,7 @@ VkResult VulkanRenderer::generateMipmaps(VkImage& image, VkFormat imageFormat, i
             }
         };
 
-        devFuncs->vkCmdBlitImage(
+        m_devFuncs->vkCmdBlitImage(
             commandBuffer,
             image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
             image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -965,7 +960,7 @@ VkResult VulkanRenderer::generateMipmaps(VkImage& image, VkFormat imageFormat, i
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
-        devFuncs->vkCmdPipelineBarrier(
+        m_devFuncs->vkCmdPipelineBarrier(
             commandBuffer,
             VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
             0,
@@ -984,7 +979,7 @@ VkResult VulkanRenderer::generateMipmaps(VkImage& image, VkFormat imageFormat, i
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
-    devFuncs->vkCmdPipelineBarrier(
+    m_devFuncs->vkCmdPipelineBarrier(
         commandBuffer,
         VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
         0,
@@ -1019,9 +1014,7 @@ VkResult VulkanRenderer::createImageView(VkImage& image, VkFormat format, VkImag
         }
     };
 
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
-
-    VkResult result = devFuncs->vkCreateImageView(m_window->device(), &viewInfo, nullptr, &imageView);
+    VkResult result = m_devFuncs->vkCreateImageView(m_window->device(), &viewInfo, nullptr, &imageView);
     if (result != VK_SUCCESS) 
     {
         qWarning() << "Failed to create image view, VkResult:" << result;
@@ -1054,8 +1047,7 @@ VkResult VulkanRenderer::createTextureSampler(VkSampler& textureSampler)
         .unnormalizedCoordinates = VK_FALSE
     };
 
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
-    VkResult result = devFuncs->vkCreateSampler(m_window->device(), &samplerInfo, nullptr, &textureSampler);
+    VkResult result = m_devFuncs->vkCreateSampler(m_window->device(), &samplerInfo, nullptr, &textureSampler);
     if (result != VK_SUCCESS) 
     {
         qWarning() << "Failed to create texture sampler, VkResult:" << result;
@@ -1095,8 +1087,7 @@ VkResult VulkanRenderer::createImage(uint32_t width,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
     };
 
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
-    VkResult result = devFuncs->vkCreateImage(m_window->device(), &imageInfo, nullptr, &image);
+    VkResult result = m_devFuncs->vkCreateImage(m_window->device(), &imageInfo, nullptr, &image);
     if (result != VK_SUCCESS) 
     {
         qWarning() << "Failed to create image, VkResult:" << result;
@@ -1104,13 +1095,13 @@ VkResult VulkanRenderer::createImage(uint32_t width,
     }
 
     VkMemoryRequirements memRequirements;
-    devFuncs->vkGetImageMemoryRequirements(m_window->device(), image, &memRequirements);
+    m_devFuncs->vkGetImageMemoryRequirements(m_window->device(), image, &memRequirements);
 
     uint32_t memoryTypeIndex = this->findMemoryType(memRequirements.memoryTypeBits, properties);
     if (memoryTypeIndex == UINT32_MAX)
     {
         qWarning() << "Failed to find suitable memory type for image";
-        devFuncs->vkDestroyImage(m_window->device(), image, nullptr);
+        m_devFuncs->vkDestroyImage(m_window->device(), image, nullptr);
         return VK_ERROR_OUT_OF_DEVICE_MEMORY;
     }
 
@@ -1120,20 +1111,20 @@ VkResult VulkanRenderer::createImage(uint32_t width,
         .memoryTypeIndex = memoryTypeIndex
     };
 
-    result = devFuncs->vkAllocateMemory(m_window->device(), &allocInfo, nullptr, &imageMemory);
+    result = m_devFuncs->vkAllocateMemory(m_window->device(), &allocInfo, nullptr, &imageMemory);
     if (result != VK_SUCCESS) 
     {
         qWarning() << "Failed to allocate image memory, VkResult:" << result;
-        devFuncs->vkDestroyImage(m_window->device(), image, nullptr);
+        m_devFuncs->vkDestroyImage(m_window->device(), image, nullptr);
         return result;
     }
 
-    result = devFuncs->vkBindImageMemory(m_window->device(), image, imageMemory, 0);
+    result = m_devFuncs->vkBindImageMemory(m_window->device(), image, imageMemory, 0);
     if (result != VK_SUCCESS) 
     {
         qWarning() << "Failed to bind image memory, VkResult:" << result;
-        devFuncs->vkDestroyImage(m_window->device(), image, nullptr);
-        devFuncs->vkFreeMemory(m_window->device(), imageMemory, nullptr);
+        m_devFuncs->vkDestroyImage(m_window->device(), image, nullptr);
+        m_devFuncs->vkFreeMemory(m_window->device(), imageMemory, nullptr);
         return result;
     }
 
@@ -1149,7 +1140,6 @@ void VulkanRenderer::createVertexBuffer()
         return;
     }
 
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
     VkDeviceSize bufferSize = sizeof(m_vertices[0]) * m_vertices.size();
     
     uint32_t memoryTypeIndex = m_window->hostVisibleMemoryIndex();
@@ -1176,29 +1166,29 @@ void VulkanRenderer::createVertexBuffer()
     }
 
     void* data;
-    result = devFuncs->vkMapMemory(m_window->device(), stagingBufferMemory, 0, bufferSize, 0, &data);
+    result = m_devFuncs->vkMapMemory(m_window->device(), stagingBufferMemory, 0, bufferSize, 0, &data);
     if (result != VK_SUCCESS) 
     {
         qWarning() << "Failed to map staging buffer memory VkResult:" << result;
-        devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
-        devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
+        m_devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
+        m_devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
         return;
     }
 
     std::memcpy(data, m_vertices.data(), static_cast<size_t>(bufferSize));
-    devFuncs->vkUnmapMemory(m_window->device(), stagingBufferMemory);
+    m_devFuncs->vkUnmapMemory(m_window->device(), stagingBufferMemory);
 
     // Vertex Buffer Creation
     if(m_vertexBuffer) 
     {
-        devFuncs->vkDestroyBuffer(m_window->device(), *m_vertexBuffer, nullptr);
+        m_devFuncs->vkDestroyBuffer(m_window->device(), *m_vertexBuffer, nullptr);
         delete m_vertexBuffer;
     }
     m_vertexBuffer = new VkBuffer;
 
     if(m_vertexBufferMemory) 
     {
-        devFuncs->vkFreeMemory(m_window->device(), *m_vertexBufferMemory, nullptr);
+        m_devFuncs->vkFreeMemory(m_window->device(), *m_vertexBufferMemory, nullptr);
         delete m_vertexBufferMemory;
     }
     m_vertexBufferMemory = new VkDeviceMemory;
@@ -1211,10 +1201,10 @@ void VulkanRenderer::createVertexBuffer()
                                 *m_vertexBufferMemory);
     if (result != VK_SUCCESS)    {
         qWarning() << "Failed to create vertex buffer, VkResult:" << result;
-        devFuncs->vkDestroyBuffer(m_window->device(), *m_vertexBuffer, nullptr);
-        devFuncs->vkFreeMemory(m_window->device(), *m_vertexBufferMemory, nullptr);
-        devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
-        devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
+        m_devFuncs->vkDestroyBuffer(m_window->device(), *m_vertexBuffer, nullptr);
+        m_devFuncs->vkFreeMemory(m_window->device(), *m_vertexBufferMemory, nullptr);
+        m_devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
+        m_devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
         return; 
     }
 
@@ -1222,15 +1212,15 @@ void VulkanRenderer::createVertexBuffer()
     result = this->copyBuffer(stagingBuffer, *m_vertexBuffer, bufferSize);
     if (result != VK_SUCCESS)    {
         qWarning() << "Failed to copy vertex data from staging buffer to vertex buffer, VkResult:" << result;
-        devFuncs->vkDestroyBuffer(m_window->device(), *m_vertexBuffer, nullptr);
-        devFuncs->vkFreeMemory(m_window->device(), *m_vertexBufferMemory, nullptr);
-        devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
-        devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
+        m_devFuncs->vkDestroyBuffer(m_window->device(), *m_vertexBuffer, nullptr);
+        m_devFuncs->vkFreeMemory(m_window->device(), *m_vertexBufferMemory, nullptr);
+        m_devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
+        m_devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
         return;
     }
 
-    devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
-    devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
+    m_devFuncs->vkDestroyBuffer(m_window->device(), stagingBuffer, nullptr);
+    m_devFuncs->vkFreeMemory(m_window->device(), stagingBufferMemory, nullptr);
 }
 
 //----------------------------------------------------------------------------------
@@ -1240,7 +1230,6 @@ void VulkanRenderer::createUniformBuffers()
     m_uniformBuffersMemory.clear();
     m_uniformBuffersMapped.clear();
 
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
     VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
     for(size_t i = 0; i < QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT; i++) 
@@ -1262,12 +1251,12 @@ void VulkanRenderer::createUniformBuffers()
         m_uniformBuffersMemory.emplace_back(std::move(bufferMemory));
         
         void *mappedData;
-        result = devFuncs->vkMapMemory(m_window->device(), *m_uniformBuffersMemory[i], 0, bufferSize, 0, &mappedData);
+        result = m_devFuncs->vkMapMemory(m_window->device(), *m_uniformBuffersMemory[i], 0, bufferSize, 0, &mappedData);
         if (result != VK_SUCCESS) 
         {
             qWarning() << "Failed to map uniform buffer memory for buffer " << i << ", VkResult:" << result;
-            devFuncs->vkDestroyBuffer(m_window->device(), *m_uniformBuffers[i], nullptr);
-            devFuncs->vkFreeMemory(m_window->device(), *m_uniformBuffersMemory[i], nullptr);
+            m_devFuncs->vkDestroyBuffer(m_window->device(), *m_uniformBuffers[i], nullptr);
+            m_devFuncs->vkFreeMemory(m_window->device(), *m_uniformBuffersMemory[i], nullptr);
             return;
         }
         m_uniformBuffersMapped.emplace_back(mappedData);
@@ -1299,11 +1288,9 @@ VkResult VulkanRenderer::createDescriptorPool()
         .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
         .pPoolSizes = poolSizes.data()
     };
-
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
+    
     m_descriptorPool = new VkDescriptorPool;
-
-    return devFuncs->vkCreateDescriptorPool(m_window->device(), &poolInfo, nullptr, m_descriptorPool);
+    return m_devFuncs->vkCreateDescriptorPool(m_window->device(), &poolInfo, nullptr, m_descriptorPool);
 }
 
 //----------------------------------------------------------------------------------
@@ -1320,9 +1307,8 @@ VkResult VulkanRenderer::createDescriptorSets()
 
     m_descriptorSets.clear();
     m_descriptorSets.resize(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT);
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
 
-    VkResult result = devFuncs->vkAllocateDescriptorSets(m_window->device(), &allocInfo, m_descriptorSets.data());
+    VkResult result = m_devFuncs->vkAllocateDescriptorSets(m_window->device(), &allocInfo, m_descriptorSets.data());
     if (result != VK_SUCCESS) 
     {
         return result;
@@ -1363,7 +1349,7 @@ VkResult VulkanRenderer::createDescriptorSets()
         };
 
         std::array<VkWriteDescriptorSet, 2> descriptorWrites = {descriptorWriteUniform, descriptorWriteImage};
-        devFuncs->vkUpdateDescriptorSets(m_window->device(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+        m_devFuncs->vkUpdateDescriptorSets(m_window->device(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }
 
     return VK_SUCCESS;
@@ -1372,8 +1358,6 @@ VkResult VulkanRenderer::createDescriptorSets()
 //----------------------------------------------------------------------------------
 VkResult VulkanRenderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) 
 {
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
-
     VkCommandBuffer commandBuffer = this->beginSingleTimeCommands();
     if (commandBuffer == VK_NULL_HANDLE)    {
         qWarning() << "Failed to begin single-time command buffer for buffer copy";
@@ -1385,7 +1369,7 @@ VkResult VulkanRenderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDe
         .dstOffset = 0,
         .size = size
     };
-    devFuncs->vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+    m_devFuncs->vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
     
     return this->endSingleTimeCommands(commandBuffer);
 }
@@ -1393,8 +1377,6 @@ VkResult VulkanRenderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDe
 //----------------------------------------------------------------------------------
 VkResult VulkanRenderer::copyBufferToImage(const VkBuffer& buffer, VkImage& image, uint32_t width, uint32_t height) 
 {
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
-
     VkCommandBuffer commandBuffer = this->beginSingleTimeCommands();
     if (commandBuffer == VK_NULL_HANDLE)    {
         qWarning() << "Failed to begin single-time command buffer for buffer-to-image copy";
@@ -1419,7 +1401,7 @@ VkResult VulkanRenderer::copyBufferToImage(const VkBuffer& buffer, VkImage& imag
         }
     };
 
-    devFuncs->vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    m_devFuncs->vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
     return this->endSingleTimeCommands(commandBuffer);
 }
 
@@ -1456,8 +1438,6 @@ VkResult VulkanRenderer::createBuffer(VkDeviceSize size,
                                       VkBuffer& buffer, 
                                       VkDeviceMemory& bufferMemory) 
 {
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
-
     VkBufferCreateInfo bufferInfo{
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size = size,
@@ -1465,13 +1445,13 @@ VkResult VulkanRenderer::createBuffer(VkDeviceSize size,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE
     };
 
-    if (devFuncs->vkCreateBuffer(m_window->device(), &bufferInfo, nullptr, &buffer) != VK_SUCCESS) 
+    if (m_devFuncs->vkCreateBuffer(m_window->device(), &bufferInfo, nullptr, &buffer) != VK_SUCCESS) 
     {
         return VK_ERROR_INITIALIZATION_FAILED;
     }
 
     VkMemoryRequirements memRequirements;
-    devFuncs->vkGetBufferMemoryRequirements(m_window->device(), buffer, &memRequirements);
+    m_devFuncs->vkGetBufferMemoryRequirements(m_window->device(), buffer, &memRequirements);
 
     VkMemoryAllocateInfo allocInfo{
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
@@ -1479,19 +1459,17 @@ VkResult VulkanRenderer::createBuffer(VkDeviceSize size,
         .memoryTypeIndex = memoryTypeIndex
     };
 
-    if (devFuncs->vkAllocateMemory(m_window->device(), &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) 
+    if (m_devFuncs->vkAllocateMemory(m_window->device(), &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) 
     {
         return VK_ERROR_MEMORY_MAP_FAILED;
     }
 
-    return devFuncs->vkBindBufferMemory(m_window->device(), buffer, bufferMemory, 0);
+    return m_devFuncs->vkBindBufferMemory(m_window->device(), buffer, bufferMemory, 0);
 }
 
 //----------------------------------------------------------------------------------
 VkCommandBuffer VulkanRenderer::beginSingleTimeCommands() 
 {
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
-
     VkCommandBufferAllocateInfo allocInfo{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .commandPool = m_window->graphicsCommandPool(),
@@ -1500,7 +1478,7 @@ VkCommandBuffer VulkanRenderer::beginSingleTimeCommands()
     };
 
     VkCommandBuffer commandBuffer;
-    if (devFuncs->vkAllocateCommandBuffers(m_window->device(), &allocInfo, &commandBuffer) != VK_SUCCESS) 
+    if (m_devFuncs->vkAllocateCommandBuffers(m_window->device(), &allocInfo, &commandBuffer) != VK_SUCCESS) 
     {
         qWarning() << "Failed to allocate command buffer for single-time commands";
         return VK_NULL_HANDLE;
@@ -1511,10 +1489,10 @@ VkCommandBuffer VulkanRenderer::beginSingleTimeCommands()
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
     };
 
-    if (devFuncs->vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) 
+    if (m_devFuncs->vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) 
     {
         qWarning() << "Failed to begin command buffer for single-time commands";
-        devFuncs->vkFreeCommandBuffers(m_window->device(), m_window->graphicsCommandPool(), 1, &commandBuffer);
+        m_devFuncs->vkFreeCommandBuffers(m_window->device(), m_window->graphicsCommandPool(), 1, &commandBuffer);
         return VK_NULL_HANDLE;
     }
 
@@ -1524,13 +1502,11 @@ VkCommandBuffer VulkanRenderer::beginSingleTimeCommands()
 //----------------------------------------------------------------------------------
 VkResult VulkanRenderer::endSingleTimeCommands(VkCommandBuffer& commandBuffer) 
 {
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
-
-    VkResult result = devFuncs->vkEndCommandBuffer(commandBuffer);
+    VkResult result = m_devFuncs->vkEndCommandBuffer(commandBuffer);
     if (result != VK_SUCCESS) 
     {
         qWarning() << "Failed to end command buffer for single-time commands";
-        devFuncs->vkFreeCommandBuffers(m_window->device(), m_window->graphicsCommandPool(), 1, &commandBuffer);
+        m_devFuncs->vkFreeCommandBuffers(m_window->device(), m_window->graphicsCommandPool(), 1, &commandBuffer);
         return result;
     }
 
@@ -1540,24 +1516,22 @@ VkResult VulkanRenderer::endSingleTimeCommands(VkCommandBuffer& commandBuffer)
         .pCommandBuffers = &commandBuffer
     };
 
-    result = devFuncs->vkQueueSubmit(m_window->graphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
+    result = m_devFuncs->vkQueueSubmit(m_window->graphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
     if (result != VK_SUCCESS) 
     {
         qWarning() << "Failed to submit command buffer for single-time commands";
-        devFuncs->vkFreeCommandBuffers(m_window->device(), m_window->graphicsCommandPool(), 1, &commandBuffer);
+        m_devFuncs->vkFreeCommandBuffers(m_window->device(), m_window->graphicsCommandPool(), 1, &commandBuffer);
         return result;
     }
 
-    devFuncs->vkQueueWaitIdle(m_window->graphicsQueue());
-    devFuncs->vkFreeCommandBuffers(m_window->device(), m_window->graphicsCommandPool(), 1, &commandBuffer);
+    m_devFuncs->vkQueueWaitIdle(m_window->graphicsQueue());
+    m_devFuncs->vkFreeCommandBuffers(m_window->device(), m_window->graphicsCommandPool(), 1, &commandBuffer);
     return VK_SUCCESS;
 }
 
 //----------------------------------------------------------------------------------
 VkResult VulkanRenderer::transitionImageLayout(VkImage& image, VkImageLayout oldLayout, VkImageLayout newLayout) 
 {
-    auto devFuncs = m_window->vulkanInstance()->deviceFunctions(m_window->device());
-
     VkCommandBuffer commandBuffer = this->beginSingleTimeCommands();
     if (commandBuffer == VK_NULL_HANDLE) 
     {
@@ -1611,11 +1585,11 @@ VkResult VulkanRenderer::transitionImageLayout(VkImage& image, VkImageLayout old
     else 
     {
         qWarning() << "Unsupported layout transition from" << oldLayout << "to" << newLayout;
-        devFuncs->vkFreeCommandBuffers(m_window->device(), m_window->graphicsCommandPool(), 1, &commandBuffer);
+        m_devFuncs->vkFreeCommandBuffers(m_window->device(), m_window->graphicsCommandPool(), 1, &commandBuffer);
         return VK_ERROR_FORMAT_NOT_SUPPORTED;
     } 
 
-    devFuncs->vkCmdPipelineBarrier(commandBuffer,
+    m_devFuncs->vkCmdPipelineBarrier(commandBuffer,
                                    sourceStage, destinationStage,
                                    0,
                                    0, nullptr,

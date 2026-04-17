@@ -4,12 +4,18 @@
 #include <QApplication>
 #include <QStyleFactory>
 #include <QFile>
+#include <QVulkanFunctions>
 
 #include <glm/glm.hpp>
+
 #include <array>
+#include <vector>
 
 namespace myvulkan 
 {
+
+constexpr uint32_t NVIDIA_VENDOR_ID = 0x10DE;
+
 //----------------------------------------------------------------------------------
 struct UniformBufferObject 
 {
@@ -105,37 +111,89 @@ struct Vertex
 class AppUtils 
 {
 public:
-    /// @brief Pick a suitable Vulkan physical device, preferring NVIDIA GPUs if available.
-    /// @param availableDevices a list of available Vulkan physical devices and their properties
-    /// @return device index of the selected physical device
-    /// @throws std::runtime_error if no suitable device is found
-    static inline int pickPhysicalDevice(const QList<VkPhysicalDeviceProperties> &availableDevices)
+    static inline int pickPhysicalDevice(QVulkanInstance* const vulkanInstance) 
     {
-        if (availableDevices.isEmpty()) {
+        auto funcs = vulkanInstance->functions();
+        if (!funcs)        {
+            throw std::runtime_error("Failed to load Vulkan device functions.");
+        }
+        
+        uint32_t deviceCount = 0;
+        VkResult result = funcs->vkEnumeratePhysicalDevices(vulkanInstance->vkInstance(), &deviceCount, nullptr);
+        if (result != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to enumerate physical devices: " + std::to_string(result));
+        }
+
+        if (deviceCount == 0) {
             throw std::runtime_error("No Vulkan-compatible physical devices found.");
         }
 
-        for(int i = 0; i < availableDevices.size(); ++i) 
+        std::vector<VkPhysicalDevice> devices(deviceCount);
+        result = funcs->vkEnumeratePhysicalDevices(vulkanInstance->vkInstance(), &deviceCount, devices.data());
+        if (result != VK_SUCCESS)
         {
-            const bool supportsVulkan1_3 = availableDevices[i].apiVersion >= VK_API_VERSION_1_3;
+            throw std::runtime_error("Failed to enumerate physical devices: " + std::to_string(result));
+        }
+        std::vector<uint32_t> suitableDeviceIndices;
 
-            // pick an NVIDIA GPU if available
-            if (supportsVulkan1_3 && availableDevices[i].vendorID == 0x10DE) // NVIDIA's vendor ID
+        for(uint32_t i = 0; i < deviceCount; ++i) 
+        {
+            // Get Physical Device Properties
+            VkPhysicalDeviceProperties deviceProperties;
+            funcs->vkGetPhysicalDeviceProperties(devices[i], &deviceProperties);
+
+            // vkGetPhysicalDeviceProperties(devices[i], &deviceProperties);
+            const bool supportsVulkan1_3 = deviceProperties.apiVersion >= VK_API_VERSION_1_3;
+            if(!supportsVulkan1_3) 
+            {
+                qDebug() << "Device " << i << " does not support Vulkan 1.3, skipping.";
+                continue;
+            }
+
+            // Get Queue Family Properties
+            uint32_t queueFamilyCount = 0;
+            funcs->vkGetPhysicalDeviceQueueFamilyProperties(devices[i], &queueFamilyCount, nullptr);
+
+            if (queueFamilyCount == 0) {
+                qDebug() << "Device " << i << " has no queue families, skipping.";
+                continue;
+            }  
+            
+            std::vector<VkQueueFamilyProperties> queueFamilyProperties(queueFamilyCount);
+            funcs->vkGetPhysicalDeviceQueueFamilyProperties(devices[i], &queueFamilyCount, queueFamilyProperties.data());
+
+            bool hasGraphicsAndComputeQueue = false;
+
+            for(const auto& qfp : queueFamilyProperties) 
+            {
+                if((qfp.queueFlags & VK_QUEUE_GRAPHICS_BIT) && (qfp.queueFlags & VK_QUEUE_COMPUTE_BIT)) 
+                {
+                    hasGraphicsAndComputeQueue = true;
+                    break;
+                }
+            }
+
+            if (!hasGraphicsAndComputeQueue) 
+            {
+                qDebug() << "Device " << i << " has no graphics and compute queue, skipping.";
+                continue;
+            }
+
+            // prefer an NVIDIA GPU if available
+            if (deviceProperties.vendorID == NVIDIA_VENDOR_ID)
             {   
                 return i;
             }
+
+            suitableDeviceIndices.push_back(i);
         }
 
-        // If no NVIDIA GPU found, just return the first device that supports Vulkan 1.3
-        for (int i = 0; i < availableDevices.size(); ++i) {
-            const bool supportsVulkan1_3 = availableDevices[i].apiVersion >= VK_API_VERSION_1_3;
-            
-            if (supportsVulkan1_3) {
-                return i;
-            }
+        if (!suitableDeviceIndices.empty()) 
+        {
+            return suitableDeviceIndices[0];
         }
 
-        // If no device supports Vulkan 1.3, throw an exception
         throw std::runtime_error("No suitable Vulkan physical device found that supports Vulkan 1.3.");
     }
 

@@ -16,7 +16,8 @@ public:
     /// @brief Constructor
     /// @param window the Vulkan window
     VulkanRenderer(QVulkanWindow* window) 
-        : m_window(window) {}
+        : m_window(window)
+        , m_devFuncs(nullptr) {}
 
     /// @brief Destructor
     ~VulkanRenderer() override = default;
@@ -43,7 +44,9 @@ public:
     size_t getIndexBufferSize() const { return sizeof(uint32_t) * m_indices.size(); }
 
 private:
-    QVulkanWindow* m_window = nullptr;
+    QVulkanWindow* m_window;
+    QVulkanDeviceFunctions* m_devFuncs;
+    
     VkPipelineLayout* m_pipelineLayout = nullptr;
     VkPipeline* m_graphicsPipeline = nullptr;
     

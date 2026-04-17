@@ -127,7 +127,7 @@ void AppMainWindow::createVulkanWindow(QString &infoLogMessage, QString &warnLog
                               .arg(availableDevices.size()));
         }
         
-        m_selectedGpuIndex = AppUtils::pickPhysicalDevice(availableDevices);
+        m_selectedGpuIndex = AppUtils::pickPhysicalDevice(m_vulkanInstance);
         m_vulkanWindow->setPhysicalDeviceIndex(m_selectedGpuIndex);
     }
     
