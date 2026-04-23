@@ -43,12 +43,19 @@ public:
     /// @brief Get the size of the index buffer
     size_t getIndexBufferSize() const { return sizeof(uint32_t) * m_indices.size(); }
 
+    static constexpr uint32_t PARTICLE_COUNT = 8192;
+
 private:
     QVulkanWindow* m_window;
     QVulkanDeviceFunctions* m_devFuncs;
-    
+
     VkPipelineLayout* m_pipelineLayout = nullptr;
     VkPipeline* m_graphicsPipeline = nullptr;
+
+    VkPipelineLayout* m_computePipelineLayout = nullptr;
+    VkPipeline* m_computePipeline = nullptr;
+    VkDescriptorSetLayout* m_computeDescriptorSetLayout = nullptr;
+    std::vector<VkCommandBuffer> m_computeCommandBuffers;
     
     std::vector<Vertex> m_vertices;
     VkBuffer* m_vertexBuffer = nullptr;
@@ -62,15 +69,25 @@ private:
     std::vector<VkDeviceMemory *> m_uniformBuffersMemory;
     std::vector<void*> m_uniformBuffersMapped;
 
-    VkDescriptorSetLayout* m_descriptorSetLayout = nullptr;
+    // Shader Storage Buffers
+    std::vector<VkBuffer *> m_shaderStorageBuffers;
+    std::vector<VkDeviceMemory *> m_shaderStorageBuffersMemory;
+
+    // VkDescriptorSetLayout* m_descriptorSetLayout = nullptr;
     VkDescriptorPool* m_descriptorPool = nullptr;
-    std::vector<VkDescriptorSet> m_descriptorSets;
+    std::vector<VkDescriptorSet> m_computeDescriptorSets;
 
     uint32_t m_mipLevels = 0;
     VkImage* m_textureImage = nullptr;
     VkDeviceMemory* m_textureImageMemory = nullptr;
     VkImageView* m_textureImageView = nullptr;
     VkSampler* m_textureSampler = nullptr;
+
+    VkSemaphore* m_semaphore = nullptr;
+    std::vector<VkFence> m_inFlightFences;
+    uint64_t m_timelineValue = 0;
+
+    double m_lastFrameTime = 0.0;
 
     VkShaderModule createShaderModule(const QString& filePath);
     VkResult createTextureImage(const QString& filePath, VkImage& textureImage, VkDeviceMemory& textureImageMemory);
@@ -88,15 +105,18 @@ private:
                          VkDeviceMemory& imageMemory);
     void createVertexBuffer();
     void createIndexBuffer();
-    void createUniformBuffers();
+    VkResult createUniformBuffers();
     VkResult createDescriptorPool();
-    VkResult createDescriptorSets();
+    // VkResult createDescriptorSets();
+    VkResult createComputeDescriptorSets();
     VkResult createBuffer(VkDeviceSize size, 
                           VkBufferUsageFlags usage, 
                           VkMemoryPropertyFlags properties, 
                           uint32_t memoryTypeIndex,
                           VkBuffer& buffer, 
                           VkDeviceMemory& bufferMemory);
+    VkResult createShaderStorageBuffers();
+    VkResult createSyncObjects();
 
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties, bool hostVisible = true);
     VkCommandBuffer beginSingleTimeCommands();

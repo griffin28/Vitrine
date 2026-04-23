@@ -11,6 +11,7 @@
 #include <iostream>
 #include <vector>
 #include <chrono>
+#include <random>
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
@@ -40,19 +41,44 @@ void VulkanRenderer::initResources()
     // invoke initResources() again, by which point defaultRenderPass() will already carry
     // the correct sample count and attachment layout.
     const VkSampleCountFlagBits msaaSamples = m_window->sampleCountFlagBits();
-    // if (msaaSamples != m_window->sampleCountFlagBits())
-    // {
-    //     m_window->setSampleCount(static_cast<int>(msaaSamples));
-    //     return;
-    // }
+
+    // Create Compute Descriptor Set Layout
+    std::array <VkDescriptorSetLayoutBinding, 3> computeBindings{};
+    computeBindings[0] = UniformBufferObject::getDescriptorSetLayoutBinding(0);
+
+    computeBindings[1].binding = 1;
+    computeBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    computeBindings[1].descriptorCount = 1;
+    computeBindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    computeBindings[1].pImmutableSamplers = nullptr;
+
+    computeBindings[2].binding = 2;
+    computeBindings[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    computeBindings[2].descriptorCount = 1;
+    computeBindings[2].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    computeBindings[2].pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutCreateInfo computeLayoutInfo{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = static_cast<uint32_t>(computeBindings.size()),
+        .pBindings = computeBindings.data()
+    };
+
+    m_computeDescriptorSetLayout = new VkDescriptorSetLayout;
+    if (m_devFuncs->vkCreateDescriptorSetLayout(m_window->device(), &computeLayoutInfo, nullptr, m_computeDescriptorSetLayout) != VK_SUCCESS) 
+    {
+        throw std::runtime_error("Failed to create compute descriptor set layout.");
+    }
 
     // Create shader module
     const QString appDir = qApp->applicationDirPath(); 
     const QString fragPath = QDir(appDir).filePath("shaders/frag.spv");
     const QString vertPath = QDir(appDir).filePath("shaders/vert.spv");
+    const QString compPath = QDir(appDir).filePath("shaders/comp.spv");
 
     auto vertShaderModule = this->createShaderModule(vertPath);
     auto fragShaderModule = this->createShaderModule(fragPath);
+    auto compShaderModule = this->createShaderModule(compPath);
 
     // Shader stage creation
     std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
@@ -72,6 +98,13 @@ void VulkanRenderer::initResources()
         .pName = "main"
     };
     shaderStages.push_back(fragmentShaderStageInfo);
+
+    VkPipelineShaderStageCreateInfo computeShaderStageInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_COMPUTE_BIT,
+        .module = compShaderModule,
+        .pName = "main"
+    };
 
     // Dynamic states (specify at draw time)
     std::vector<VkDynamicState> dynamicStates = {
@@ -94,8 +127,8 @@ void VulkanRenderer::initResources()
     };
 
     // Vertex Input
-    auto bindingDescription = Vertex::getBindingDescription();
-    auto attributeDescriptions = Vertex::getAttributeDescriptions();
+    auto bindingDescription = Particle::getBindingDescription();
+    auto attributeDescriptions = Particle::getAttributeDescriptions();
     
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -108,7 +141,7 @@ void VulkanRenderer::initResources()
     // Input Assembly
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST,
         .primitiveRestartEnable = VK_FALSE
     };
 
@@ -158,7 +191,7 @@ void VulkanRenderer::initResources()
         .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
         .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
         .colorBlendOp = VK_BLEND_OP_ADD,
-        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
         .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
         .alphaBlendOp = VK_BLEND_OP_ADD,
         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
@@ -173,42 +206,43 @@ void VulkanRenderer::initResources()
     };
 
     // Uniforms and Push Constants
-    VkDescriptorSetLayoutBinding uboLayoutBinding = UniformBufferObject::getDescriptorSetLayoutBinding(0);
-    VkDescriptorSetLayoutBinding samplerBinding = {
-        .binding = 1,
-        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .descriptorCount = 1,
-        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .pImmutableSamplers = nullptr
-    };
+    // VkDescriptorSetLayoutBinding uboLayoutBinding = UniformBufferObject::getDescriptorSetLayoutBinding(0);
+    // VkDescriptorSetLayoutBinding samplerBinding = {
+    //     .binding = 1,
+    //     .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+    //     .descriptorCount = 1,
+    //     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+    //     .pImmutableSamplers = nullptr
+    // };
 
-    std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, samplerBinding};
+    // std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, samplerBinding};
 
-    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = static_cast<uint32_t>(bindings.size()),
-        .pBindings = bindings.data()
-    };
+    // VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo{
+    //     .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+    //     .bindingCount = static_cast<uint32_t>(bindings.size()),
+    //     .pBindings = bindings.data()
+    // };
 
-    m_descriptorSetLayout = new VkDescriptorSetLayout;
+    // m_descriptorSetLayout = new VkDescriptorSetLayout;
     
-    VkResult result = m_devFuncs->vkCreateDescriptorSetLayout(m_window->device(), &descriptorSetLayoutInfo, nullptr, m_descriptorSetLayout);
-    if (result != VK_SUCCESS) 
-    {
-        qWarning() << "Failed to create descriptor set layout, VkResult:" << result;
-        throw std::runtime_error("Failed to create descriptor set layout");
-    }
+    // VkResult result = m_devFuncs->vkCreateDescriptorSetLayout(m_window->device(), &descriptorSetLayoutInfo, nullptr, m_descriptorSetLayout);
+    // if (result != VK_SUCCESS) 
+    // {
+    //     qWarning() << "Failed to create descriptor set layout, VkResult:" << result;
+    //     throw std::runtime_error("Failed to create descriptor set layout");
+    // }
 
     // Pipeline Layout
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = 1,
-        .pSetLayouts = m_descriptorSetLayout,
-        .pushConstantRangeCount = 0
-    };
+    // VkPipelineLayoutCreateInfo pipelineLayoutInfo{
+    //     .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+    //     .setLayoutCount = 1,
+    //     .pSetLayouts = m_descriptorSetLayout,
+    //     .pushConstantRangeCount = 0
+    // };
 
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo;
     m_pipelineLayout = new VkPipelineLayout;
-    result = m_devFuncs->vkCreatePipelineLayout(m_window->device(), &pipelineLayoutInfo, nullptr, m_pipelineLayout);
+    VkResult result = m_devFuncs->vkCreatePipelineLayout(m_window->device(), &pipelineLayoutInfo, nullptr, m_pipelineLayout);
     if (result != VK_SUCCESS) 
     {
         qWarning() << "Failed to create pipeline layout, VkResult:" << result;
@@ -247,50 +281,119 @@ void VulkanRenderer::initResources()
     m_devFuncs->vkDestroyShaderModule(m_window->device(), fragShaderModule, nullptr);
 
     // Create Texture Image
-    const QString texturePath = QDir(appDir).filePath("textures/viking_room.png");
-    m_textureImage = new VkImage;
-    m_textureImageMemory = new VkDeviceMemory;
+    // const QString texturePath = QDir(appDir).filePath("textures/viking_room.png");
+    // m_textureImage = new VkImage;
+    // m_textureImageMemory = new VkDeviceMemory;
 
-    result = this->createTextureImage(texturePath, *m_textureImage, *m_textureImageMemory);
-    if (result != VK_SUCCESS)
-    {        
-        qWarning() << "Failed to create texture image, VkResult:" << result;
-        // throw std::runtime_error("Failed to create texture image");
-    }
+    // result = this->createTextureImage(texturePath, *m_textureImage, *m_textureImageMemory);
+    // if (result != VK_SUCCESS)
+    // {        
+    //     qWarning() << "Failed to create texture image, VkResult:" << result;
+    //     // throw std::runtime_error("Failed to create texture image");
+    // }
 
-    // Create Texture Image View
-    m_textureImageView = new VkImageView;
+    // // Create Texture Image View
+    // m_textureImageView = new VkImageView;
 
-    result = this->createImageView(*m_textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, *m_textureImageView);
-    if (result != VK_SUCCESS)
-    {
-        qWarning() << "Failed to create texture image view, VkResult:" << result;
-    }
+    // result = this->createImageView(*m_textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, *m_textureImageView);
+    // if (result != VK_SUCCESS)
+    // {
+    //     qWarning() << "Failed to create texture image view, VkResult:" << result;
+    // }
 
-    // Create Texture Sampler
-    m_textureSampler = new VkSampler;
-    result = this->createTextureSampler(*m_textureSampler);
-    if (result != VK_SUCCESS)    {
-        qWarning() << "Failed to create texture sampler, VkResult:" << result;
-    }
+    // // Create Texture Sampler
+    // m_textureSampler = new VkSampler;
+    // result = this->createTextureSampler(*m_textureSampler);
+    // if (result != VK_SUCCESS)    {
+    //     qWarning() << "Failed to create texture sampler, VkResult:" << result;
+    // }
 
-    this->loadModel(QDir(appDir).filePath("models/viking_room.obj"));
+    // this->loadModel(QDir(appDir).filePath("models/viking_room.obj"));
 
     // Create Buffers
-    this->createVertexBuffer();
-    this->createIndexBuffer();
-    this->createUniformBuffers();
+    // this->createVertexBuffer();
+    // this->createIndexBuffer();
+    // this->createUniformBuffers();
 
-    result = this->createDescriptorPool();
+    // result = this->createDescriptorPool();
+    // if (result != VK_SUCCESS)
+    // {
+    //     qWarning() << "Failed to create descriptor pool, VkResult:" << result;
+    // }
+
+    // result = this->createDescriptorSets();
+    // if (result != VK_SUCCESS)
+    // {
+    //     qWarning() << "Failed to create descriptor sets, VkResult:" << result;
+    // }
+
+    // Create Compute Pipeline
+    VkPipelineLayoutCreateInfo computePipelineLayoutInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = 1,
+        .pSetLayouts = m_computeDescriptorSetLayout
+    };
+
+    m_computePipelineLayout = new VkPipelineLayout;
+    result = m_devFuncs->vkCreatePipelineLayout(m_window->device(), &computePipelineLayoutInfo, nullptr, m_computePipelineLayout);
     if (result != VK_SUCCESS)
     {
-        qWarning() << "Failed to create descriptor pool, VkResult:" << result;
+        qWarning() << "Failed to create compute pipeline layout, VkResult:" << result;
+        throw std::runtime_error("Failed to create compute pipeline layout");       
     }
 
-    result = this->createDescriptorSets();
+    VkComputePipelineCreateInfo computePipelineInfo{
+        .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+        .stage = computeShaderStageInfo,
+        .layout = *m_computePipelineLayout
+    };
+
+    m_computePipeline = new VkPipeline;
+    result = m_devFuncs->vkCreateComputePipelines(m_window->device(), VK_NULL_HANDLE, 1, &computePipelineInfo, nullptr, m_computePipeline);
     if (result != VK_SUCCESS)
     {
-        qWarning() << "Failed to create descriptor sets, VkResult:" << result;
+        qWarning() << "Failed to create compute pipeline, VkResult:" << result;
+        throw std::runtime_error("Failed to create compute pipeline");
+    }
+
+    // Create Shader Storage Buffers
+    result = this->createShaderStorageBuffers();
+    if (result != VK_SUCCESS)    {
+        qWarning() << "Failed to create shader storage buffers, VkResult:" << result;
+    }
+
+    // Create Uniform Buffers
+    result = this->createUniformBuffers();
+    if (result != VK_SUCCESS)    {
+        throw std::runtime_error("Failed to create uniform buffers, VkResult:" + std::to_string(result));
+    }
+
+    // Create Descriptor Pool
+    result = this->createDescriptorPool();
+    if (result != VK_SUCCESS)    {
+        throw std::runtime_error("Failed to create descriptor pool, VkResult:" + std::to_string(result));
+    }
+
+    // Create Compute Descriptor Sets
+    result = this->createComputeDescriptorSets();
+    if (result != VK_SUCCESS)    {
+        throw std::runtime_error("Failed to create compute descriptor sets, VkResult:" + std::to_string(result));
+    }
+
+    // Create Compute Command Buffers
+    m_computeCommandBuffers.resize(m_window->concurrentFrameCount());
+
+    VkCommandBufferAllocateInfo commandBufferAllocInfo{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = m_window->graphicsCommandPool(),
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = static_cast<uint32_t>(m_computeCommandBuffers.size())
+    };
+
+    VkResult result = m_devFuncs->vkAllocateCommandBuffers(m_window->device(), &commandBufferAllocInfo, m_computeCommandBuffers.data());
+    if (result != VK_SUCCESS)
+    {
+        throw std::runtime_error("Failed to allocate compute command buffers, VkResult:" + std::to_string(result));
     }
 }
 
@@ -371,6 +474,24 @@ void VulkanRenderer::releaseResources()
         }
     }
 
+    // Shader Storage Buffers
+    for (size_t i = 0; i < m_shaderStorageBuffers.size(); i++) 
+    {
+        if (m_shaderStorageBuffers[i]) 
+        {
+            m_devFuncs->vkDestroyBuffer(m_window->device(), *m_shaderStorageBuffers[i], nullptr);
+            delete m_shaderStorageBuffers[i];
+            m_shaderStorageBuffers[i] = nullptr;
+        }
+
+        if (m_shaderStorageBuffersMemory[i]) 
+        {
+            m_devFuncs->vkFreeMemory(m_window->device(), *m_shaderStorageBuffersMemory[i], nullptr);
+            delete m_shaderStorageBuffersMemory[i];
+            m_shaderStorageBuffersMemory[i] = nullptr;
+        }
+    }
+
     // Descriptor Pool and Sets
     if (m_descriptorPool) 
     {
@@ -379,11 +500,11 @@ void VulkanRenderer::releaseResources()
         m_descriptorPool = nullptr;
     }
 
-    if (m_descriptorSetLayout) 
+    if (m_computeDescriptorSetLayout) 
     {
-        m_devFuncs->vkDestroyDescriptorSetLayout(m_window->device(), *m_descriptorSetLayout, nullptr);
-        delete m_descriptorSetLayout;
-        m_descriptorSetLayout = nullptr;    
+        m_devFuncs->vkDestroyDescriptorSetLayout(m_window->device(), *m_computeDescriptorSetLayout, nullptr);
+        delete m_computeDescriptorSetLayout;
+        m_computeDescriptorSetLayout = nullptr;    
     }
 
     // Texture Resources
@@ -479,6 +600,14 @@ void VulkanRenderer::startNextFrame()
     //     qWarning() << "Failed to wait for graphics queue idle";
     //     return;
     // }
+
+    m_devFuncs->vkResetFences(m_window->device(), 1, &m_inFlightFences[m_window->currentFrame()]);
+
+    // Update timeline value for this frame
+    uint64_t computeWaitValue = m_timelineValue;
+    uint64_t computeSignalValue = ++m_timelineValue;
+    uint64_t graphicsWaitValue = computeSignalValue;
+    uint64_t graphicsSignalValue = ++m_timelineValue;
 
     this->updateUniformBuffer();
     this->recordCommandBuffer();
@@ -588,7 +717,7 @@ void VulkanRenderer::recordCommandBuffer()
 
     // Draw
     // m_devFuncs->vkCmdDraw(commandBuffer, 3, 1, 0, 0);
-    m_devFuncs->vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_pipelineLayout, 0, 1, &m_descriptorSets[m_window->currentFrame()], 0, nullptr);
+    m_devFuncs->vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_pipelineLayout, 0, 1, &m_computeDescriptorSets[m_window->currentFrame()], 0, nullptr);
     m_devFuncs->vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_indices.size()), 1, 0, 0, 0);
 
     m_devFuncs->vkCmdEndRenderPass(commandBuffer);
@@ -599,25 +728,33 @@ void VulkanRenderer::recordCommandBuffer()
 //----------------------------------------------------------------------------------
 void VulkanRenderer::updateUniformBuffer() 
 {
-    static auto startTime = std::chrono::high_resolution_clock::now();
-    // Update uniform buffer with transformation matrices or other data as needed.
-    // This is where you would typically calculate the model-view-projection matrix and copy it to the uniform buffer.
-    const int frameIndex = m_window->currentFrame();
+    // static auto startTime = std::chrono::high_resolution_clock::now();
+    // // Update uniform buffer with transformation matrices or other data as needed.
+    // // This is where you would typically calculate the model-view-projection matrix and copy it to the uniform buffer.
+    // const int frameIndex = m_window->currentFrame();
     
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+    // auto currentTime = std::chrono::high_resolution_clock::now();
+    // float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+    // UniformBufferObject ubo{};
+    // ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    // ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    // ubo.proj = glm::perspective(glm::radians(45.0f), // fovy
+    //                             static_cast<float>(m_window->swapChainImageSize().width()) / static_cast<float>(m_window->swapChainImageSize().height()), // aspect ratio
+    //                             0.1f, 10.0f); // near and far planes
+    // ubo.proj[1][1] *= -1;
+
+    // if (m_uniformBuffersMapped[frameIndex]) 
+    // {
+    //     std::memcpy(m_uniformBuffersMapped[frameIndex], &ubo, sizeof(ubo));
+    // }
 
     UniformBufferObject ubo{};
-    ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.proj = glm::perspective(glm::radians(45.0f), // fovy
-                                static_cast<float>(m_window->swapChainImageSize().width()) / static_cast<float>(m_window->swapChainImageSize().height()), // aspect ratio
-                                0.1f, 10.0f); // near and far planes
-    ubo.proj[1][1] *= -1;
+    ubo.deltaTime = static_cast<float>(m_lastFrameTime) * 2.0f;
 
-    if (m_uniformBuffersMapped[frameIndex]) 
+    if (m_uniformBuffersMapped[m_window->currentFrame()]) 
     {
-        std::memcpy(m_uniformBuffersMapped[frameIndex], &ubo, sizeof(ubo));
+        std::memcpy(m_uniformBuffersMapped[m_window->currentFrame()], &ubo, sizeof(ubo));
     }
 }
 
@@ -1224,7 +1361,7 @@ void VulkanRenderer::createVertexBuffer()
 }
 
 //----------------------------------------------------------------------------------
-void VulkanRenderer::createUniformBuffers() 
+VkResult VulkanRenderer::createUniformBuffers() 
 {
     m_uniformBuffers.clear();
     m_uniformBuffersMemory.clear();
@@ -1245,7 +1382,7 @@ void VulkanRenderer::createUniformBuffers()
         if (result != VK_SUCCESS) 
         {
             qWarning() << "Failed to create uniform buffer " << i << ", VkResult:" << result;
-            return;
+            return result;
         }
         m_uniformBuffers.emplace_back(std::move(buffer));
         m_uniformBuffersMemory.emplace_back(std::move(bufferMemory));
@@ -1257,10 +1394,12 @@ void VulkanRenderer::createUniformBuffers()
             qWarning() << "Failed to map uniform buffer memory for buffer " << i << ", VkResult:" << result;
             m_devFuncs->vkDestroyBuffer(m_window->device(), *m_uniformBuffers[i], nullptr);
             m_devFuncs->vkFreeMemory(m_window->device(), *m_uniformBuffersMemory[i], nullptr);
-            return;
+            return result;
         }
         m_uniformBuffersMapped.emplace_back(mappedData);
     }
+
+    return VK_SUCCESS;
 }
 
 //----------------------------------------------------------------------------------
@@ -1268,19 +1407,30 @@ VkResult VulkanRenderer::createDescriptorPool()
 {
     // Create a descriptor pool that can allocate descriptor sets for our uniform buffers.
     // This is needed if we want to use descriptor sets to bind our uniform buffers to the pipeline.
-    VkDescriptorPoolSize uniformPoolSize{
-        .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        .descriptorCount = static_cast<uint32_t>(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT)
+    // VkDescriptorPoolSize uniformPoolSize{
+    //     .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    //     .descriptorCount = static_cast<uint32_t>(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT)
+    // };
+
+    // VkDescriptorPoolSize samplerPoolSize{
+    //     .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+    //     .descriptorCount = static_cast<uint32_t>(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT)
+    // };
+
+    // std::array<VkDescriptorPoolSize, 2> poolSizes = {uniformPoolSize, samplerPoolSize};
+
+    std::array<VkDescriptorPoolSize, 2> poolSizes = {
+        VkDescriptorPoolSize{
+            .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = static_cast<uint32_t>(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT)
+        },
+         VkDescriptorPoolSize
+        {
+            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = static_cast<uint32_t>(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT)
+        }
     };
-
-    VkDescriptorPoolSize samplerPoolSize{
-        .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .descriptorCount = static_cast<uint32_t>(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT)
-    };
-
-    std::array<VkDescriptorPoolSize, 2> poolSizes = {uniformPoolSize, samplerPoolSize};
-
-
+    
     VkDescriptorPoolCreateInfo poolInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
@@ -1294,10 +1444,10 @@ VkResult VulkanRenderer::createDescriptorPool()
 }
 
 //----------------------------------------------------------------------------------
-VkResult VulkanRenderer::createDescriptorSets() 
+VkResult VulkanRenderer::createComputeDescriptorSets()
 {
-    // Allocate and configure descriptor sets for our uniform buffers.
-    std::vector<VkDescriptorSetLayout> layouts(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT, *m_descriptorSetLayout);
+    // Allocate and configure descriptor sets for our compute shader's storage buffers.
+    std::vector<VkDescriptorSetLayout> layouts(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT, *m_computeDescriptorSetLayout);
     VkDescriptorSetAllocateInfo allocInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
         .descriptorPool = *m_descriptorPool,
@@ -1305,10 +1455,10 @@ VkResult VulkanRenderer::createDescriptorSets()
         .pSetLayouts = layouts.data()
     };
 
-    m_descriptorSets.clear();
-    m_descriptorSets.resize(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT);
+    m_computeDescriptorSets.clear();
+    m_computeDescriptorSets.resize(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT);
 
-    VkResult result = m_devFuncs->vkAllocateDescriptorSets(m_window->device(), &allocInfo, m_descriptorSets.data());
+    VkResult result = m_devFuncs->vkAllocateDescriptorSets(m_window->device(), &allocInfo, m_computeDescriptorSets.data());
     if (result != VK_SUCCESS) 
     {
         return result;
@@ -1322,38 +1472,115 @@ VkResult VulkanRenderer::createDescriptorSets()
             .range = sizeof(UniformBufferObject)
         };
 
-        VkDescriptorImageInfo imageInfo{
-            .sampler = *m_textureSampler,
-            .imageView = *m_textureImageView,
-            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        VkDescriptorBufferInfo storageBufferInfoLastFrame{
+            .buffer = *m_shaderStorageBuffers[(i-1) % QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT],
+            .offset = 0,
+            .range = sizeof(Particle) * PARTICLE_COUNT
         };
 
-        VkWriteDescriptorSet descriptorWriteUniform{
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = m_descriptorSets[i],
-            .dstBinding = 0,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .pBufferInfo = &bufferInfo
+        VkDescriptorBufferInfo storageBufferInfoCurrentFrame{
+            .buffer = *m_shaderStorageBuffers[i],
+            .offset = 0,
+            .range = sizeof(Particle) * PARTICLE_COUNT
         };
 
-        VkWriteDescriptorSet descriptorWriteImage{
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = m_descriptorSets[i],
-            .dstBinding = 1,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .pImageInfo = &imageInfo
+        std::array descriptorWrites = {
+            VkWriteDescriptorSet{
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = m_computeDescriptorSets[i],
+                .dstBinding = 0,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .pBufferInfo = &bufferInfo
+            },
+            VkWriteDescriptorSet{
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = m_computeDescriptorSets[i],
+                .dstBinding = 1,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .pBufferInfo = &storageBufferInfoLastFrame
+            },
+            VkWriteDescriptorSet{
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = m_computeDescriptorSets[i],
+                .dstBinding = 2,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .pBufferInfo = &storageBufferInfoCurrentFrame
+            }
         };
 
-        std::array<VkWriteDescriptorSet, 2> descriptorWrites = {descriptorWriteUniform, descriptorWriteImage};
         m_devFuncs->vkUpdateDescriptorSets(m_window->device(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }
 
     return VK_SUCCESS;
 }
+
+//----------------------------------------------------------------------------------
+// VkResult VulkanRenderer::createDescriptorSets() 
+// {
+//     // Allocate and configure descriptor sets for our uniform buffers.
+//     std::vector<VkDescriptorSetLayout> layouts(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT, *m_descriptorSetLayout);
+//     VkDescriptorSetAllocateInfo allocInfo{
+//         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+//         .descriptorPool = *m_descriptorPool,
+//         .descriptorSetCount = static_cast<uint32_t>(layouts.size()),
+//         .pSetLayouts = layouts.data()
+//     };
+
+//     m_descriptorSets.clear();
+//     m_descriptorSets.resize(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT);
+
+//     VkResult result = m_devFuncs->vkAllocateDescriptorSets(m_window->device(), &allocInfo, m_descriptorSets.data());
+//     if (result != VK_SUCCESS) 
+//     {
+//         return result;
+//     }
+
+//     for (size_t i = 0; i < QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT; i++) 
+//     {
+//         VkDescriptorBufferInfo bufferInfo{
+//             .buffer = *m_uniformBuffers[i],
+//             .offset = 0,
+//             .range = sizeof(UniformBufferObject)
+//         };
+
+//         VkDescriptorImageInfo imageInfo{
+//             .sampler = *m_textureSampler,
+//             .imageView = *m_textureImageView,
+//             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+//         };
+
+//         VkWriteDescriptorSet descriptorWriteUniform{
+//             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+//             .dstSet = m_descriptorSets[i],
+//             .dstBinding = 0,
+//             .dstArrayElement = 0,
+//             .descriptorCount = 1,
+//             .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+//             .pBufferInfo = &bufferInfo
+//         };
+
+//         VkWriteDescriptorSet descriptorWriteImage{
+//             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+//             .dstSet = m_descriptorSets[i],
+//             .dstBinding = 1,
+//             .dstArrayElement = 0,
+//             .descriptorCount = 1,
+//             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+//             .pImageInfo = &imageInfo
+//         };
+
+//         std::array<VkWriteDescriptorSet, 2> descriptorWrites = {descriptorWriteUniform, descriptorWriteImage};
+//         m_devFuncs->vkUpdateDescriptorSets(m_window->device(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+//     }
+
+//     return VK_SUCCESS;
+// }
 
 //----------------------------------------------------------------------------------
 VkResult VulkanRenderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) 
@@ -1428,6 +1655,127 @@ uint32_t VulkanRenderer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFla
     }
 
     return UINT32_MAX; // Failed to find suitable memory type
+}
+
+//----------------------------------------------------------------------------------
+VkResult VulkanRenderer::createShaderStorageBuffers()
+{
+    // Initialize Particles
+    std::default_random_engine rndEngine(static_cast<unsigned long>(std::chrono::high_resolution_clock::now().time_since_epoch().count()));
+    std::uniform_real_distribution<float> rndDist(0.0f, 1.0f);
+
+    // Initial Particle positions on a circle
+    std::vector<Particle> particles(PARTICLE_COUNT);
+    for (size_t i = 0; i < PARTICLE_COUNT; i++)
+    {        
+        float angle = rndDist(rndEngine) * 2.0f * M_PI;
+        float radius = 0.25f * std::sqrt(rndDist(rndEngine));
+        float x = radius * std::cos(angle) * static_cast<float>(m_window->height()) / static_cast<float>(m_window->width());
+        float y = radius * std::sin(angle);
+        particles[i].position = glm::vec2(x, y);
+        particles[i].velocity = glm::normalize(glm::vec2(x, y)) * 0.00025f;
+        particles[i].color = glm::vec4(rndDist(rndEngine), rndDist(rndEngine), rndDist(rndEngine), 1.0f);
+    }
+
+    VkDeviceSize bufferSize = sizeof(Particle) * particles.size();
+
+    // Create staging buffer to upload particle data to GPU
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+    VkResult result = this->createBuffer(bufferSize, 
+                                         VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+                                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+                                         m_window->hostVisibleMemoryIndex(), 
+                                         stagingBuffer, 
+                                         stagingBufferMemory);
+
+    if (result != VK_SUCCESS)    {
+        qWarning() << "Failed to create staging buffer for shader storage buffer, VkResult:" << result;
+        return result;
+    }
+
+    void* dataStaging;
+    result = m_devFuncs->vkMapMemory(m_window->device(), stagingBufferMemory, 0, bufferSize, 0, &dataStaging);
+    if (result != VK_SUCCESS) {
+        qWarning() << "Failed to map memory for staging buffer, VkResult:" << result;
+        return result;
+    }
+
+    std::memcpy(dataStaging, particles.data(), static_cast<size_t>(bufferSize));
+    m_devFuncs->vkUnmapMemory(m_window->device(), stagingBufferMemory);
+
+    m_shaderStorageBuffers.clear();
+    m_shaderStorageBuffersMemory.clear();
+
+    // Copy initial particle data to all storage buffers
+    for (size_t i = 0; i < QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT; i++) 
+    {
+        VkBuffer* buffer = new VkBuffer;
+        VkDeviceMemory* bufferMemory = new VkDeviceMemory;
+
+        result = this->createBuffer(bufferSize, 
+                                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 
+                                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+                                    m_window->deviceLocalMemoryIndex(), 
+                                    *buffer, 
+                                    *bufferMemory);
+        if (result != VK_SUCCESS)        {
+            qWarning() << "Failed to create shader storage buffer " << i << ", VkResult:" << result;
+            return result;
+        }
+
+        result = this->copyBuffer(stagingBuffer, *buffer, bufferSize);
+        if (result != VK_SUCCESS)        {
+            qWarning() << "Failed to copy data to shader storage buffer " << i << ", VkResult:" << result;
+            return result;
+        }
+
+        m_shaderStorageBuffers.emplace_back(std::move(buffer));
+        m_shaderStorageBuffersMemory.emplace_back(std::move(bufferMemory)); 
+    }
+
+    return VK_SUCCESS;
+
+}
+
+//----------------------------------------------------------------------------------
+VkResult VulkanRenderer::createSyncObjects()
+{
+    m_inFlightFences.resize(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT);
+
+    VkSemaphoreTypeCreateInfo semaphoreTypeInfo{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
+        .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
+        .initialValue = 0
+    };
+
+    VkSemaphoreCreateInfo semaphoreInfo{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        .pNext = &semaphoreTypeInfo
+    };
+
+    m_semaphore = new VkSemaphore;
+    if (m_devFuncs->vkCreateSemaphore(m_window->device(), &semaphoreInfo, nullptr, m_semaphore) != VK_SUCCESS)    {
+        qWarning() << "Failed to create timeline semaphore for synchronization";
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+
+    for (size_t i = 0; i < QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT; i++) 
+    {
+        VkFenceCreateInfo fenceInfo;
+        // VkFenceCreateInfo fenceInfo{
+        //     .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        //     .flags = VK_FENCE_CREATE_SIGNALED_BIT
+        // };
+
+        if (m_devFuncs->vkCreateFence(m_window->device(), &fenceInfo, nullptr, &m_inFlightFences[i]) != VK_SUCCESS) 
+        {
+            qWarning() << "Failed to create synchronization objects for frame " << i;
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+    }
+
+    return VK_SUCCESS;
 }
 
 //----------------------------------------------------------------------------------

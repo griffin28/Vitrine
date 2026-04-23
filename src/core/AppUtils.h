@@ -19,23 +19,74 @@ constexpr uint32_t NVIDIA_VENDOR_ID = 0x10DE;
 //----------------------------------------------------------------------------------
 struct UniformBufferObject 
 {
-    glm::mat4 model;
-    glm::mat4 view;
-    glm::mat4 proj;
+    // glm::mat4 model;
+    // glm::mat4 view;
+    // glm::mat4 proj;
 
-    /// @brief Get a descriptor set layout binding for this uniform buffer object.
-    /// @param binding the binding index to use for this uniform buffer object
-    /// @return a VkDescriptorSetLayoutBinding describing how this uniform buffer object should be bound to a descriptor set
+    // /// @brief Get a descriptor set layout binding for this uniform buffer object.
+    // /// @param binding the binding index to use for this uniform buffer object
+    // /// @return a VkDescriptorSetLayoutBinding describing how this uniform buffer object should be bound to a descriptor set
+    // static VkDescriptorSetLayoutBinding getDescriptorSetLayoutBinding(uint32_t binding) 
+    // {
+    //     VkDescriptorSetLayoutBinding uboLayoutBinding{};
+    //     uboLayoutBinding.binding = binding;
+    //     uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    //     uboLayoutBinding.descriptorCount = 1;
+    //     uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    //     uboLayoutBinding.pImmutableSamplers = nullptr;
+
+    //     return uboLayoutBinding;
+    // }
+
+    float deltaTime = 1.0f;
+
     static VkDescriptorSetLayoutBinding getDescriptorSetLayoutBinding(uint32_t binding) 
     {
         VkDescriptorSetLayoutBinding uboLayoutBinding{};
         uboLayoutBinding.binding = binding;
         uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         uboLayoutBinding.descriptorCount = 1;
-        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
         uboLayoutBinding.pImmutableSamplers = nullptr;
 
         return uboLayoutBinding;
+    }
+};
+
+//----------------------------------------------------------------------------------
+struct Particle 
+{
+    glm::vec2 position;
+    glm::vec2 velocity;
+    glm::vec4 color;
+
+    static VkVertexInputBindingDescription getBindingDescription() 
+    {
+        VkVertexInputBindingDescription bindingDescription{};
+        bindingDescription.binding = 0;
+        bindingDescription.stride = sizeof(Particle);
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+        return bindingDescription;
+    }
+
+    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() 
+    {
+        std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+
+        // Position attribute
+        attributeDescriptions[0].binding = 0;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT; // vec2
+        attributeDescriptions[0].offset = offsetof(Particle, position);
+
+        // Color attribute
+        attributeDescriptions[1].binding = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT; // vec4
+        attributeDescriptions[1].offset = offsetof(Particle, color);
+
+        return attributeDescriptions;
     }
 };
 
