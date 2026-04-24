@@ -44,6 +44,7 @@ public:
     size_t getIndexBufferSize() const { return sizeof(uint32_t) * m_indices.size(); }
 
     static constexpr uint32_t PARTICLE_COUNT = 8192;
+    static constexpr uint32_t WORKGROUP_SIZE = 256;
 
 private:
     QVulkanWindow* m_window;
@@ -54,8 +55,11 @@ private:
 
     VkPipelineLayout* m_computePipelineLayout = nullptr;
     VkPipeline* m_computePipeline = nullptr;
-    VkDescriptorSetLayout* m_computeDescriptorSetLayout = nullptr;
     std::vector<VkCommandBuffer> m_computeCommandBuffers;
+
+    VkDescriptorSetLayout* m_computeDescriptorSetLayout = nullptr;
+    VkDescriptorPool* m_descriptorPool = nullptr;
+    std::vector<VkDescriptorSet> m_computeDescriptorSets;
     
     std::vector<Vertex> m_vertices;
     VkBuffer* m_vertexBuffer = nullptr;
@@ -73,16 +77,13 @@ private:
     std::vector<VkBuffer *> m_shaderStorageBuffers;
     std::vector<VkDeviceMemory *> m_shaderStorageBuffersMemory;
 
-    // VkDescriptorSetLayout* m_descriptorSetLayout = nullptr;
-    VkDescriptorPool* m_descriptorPool = nullptr;
-    std::vector<VkDescriptorSet> m_computeDescriptorSets;
-
     uint32_t m_mipLevels = 0;
     VkImage* m_textureImage = nullptr;
     VkDeviceMemory* m_textureImageMemory = nullptr;
     VkImageView* m_textureImageView = nullptr;
     VkSampler* m_textureSampler = nullptr;
 
+    // Synchronization objects
     VkSemaphore* m_semaphore = nullptr;
     std::vector<VkFence> m_inFlightFences;
     uint64_t m_timelineValue = 0;
@@ -107,7 +108,7 @@ private:
     void createIndexBuffer();
     VkResult createUniformBuffers();
     VkResult createDescriptorPool();
-    // VkResult createDescriptorSets();
+    VkResult createComputeDescriptorSetLayout();
     VkResult createComputeDescriptorSets();
     VkResult createBuffer(VkDeviceSize size, 
                           VkBufferUsageFlags usage, 
@@ -126,6 +127,7 @@ private:
 
     void loadModel(const QString& path);
     void recordCommandBuffer();
+    VkResult recordComputeCommandBuffer();
     void updateUniformBuffer();
     VkResult copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
     VkResult copyBufferToImage(const VkBuffer& buffer, VkImage& image, uint32_t width, uint32_t height);

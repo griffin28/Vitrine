@@ -19,25 +19,6 @@ constexpr uint32_t NVIDIA_VENDOR_ID = 0x10DE;
 //----------------------------------------------------------------------------------
 struct UniformBufferObject 
 {
-    // glm::mat4 model;
-    // glm::mat4 view;
-    // glm::mat4 proj;
-
-    // /// @brief Get a descriptor set layout binding for this uniform buffer object.
-    // /// @param binding the binding index to use for this uniform buffer object
-    // /// @return a VkDescriptorSetLayoutBinding describing how this uniform buffer object should be bound to a descriptor set
-    // static VkDescriptorSetLayoutBinding getDescriptorSetLayoutBinding(uint32_t binding) 
-    // {
-    //     VkDescriptorSetLayoutBinding uboLayoutBinding{};
-    //     uboLayoutBinding.binding = binding;
-    //     uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    //     uboLayoutBinding.descriptorCount = 1;
-    //     uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    //     uboLayoutBinding.pImmutableSamplers = nullptr;
-
-    //     return uboLayoutBinding;
-    // }
-
     float deltaTime = 1.0f;
 
     static VkDescriptorSetLayoutBinding getDescriptorSetLayoutBinding(uint32_t binding) 

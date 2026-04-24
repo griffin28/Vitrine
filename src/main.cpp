@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
                 logMessages.append(QString("Extension %1 not supported. Running without it. ").arg(VK_EXT_DEBUG_UTILS_EXTENSION_NAME));
             }
 
-            logMessages.append(QString("Enabling validation layers: %1").arg(validLayers.join(", ")));
+            logMessages.append(QString("Enabling validation layers: %1.").arg(validLayers.join(", ")));
             vulkanInstance.setLayers(validLayers);
         }
     }
@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
     if (supportedApiVersion >= QVersionNumber(1,4)) 
     {
         vulkanInstance.setApiVersion(QVersionNumber(1, 4));
-        logMessages.append(QString(". Requesting Vulkan API version 1.4. Supported version: %1.%2.%3")
+        logMessages.append(QString(" Requesting Vulkan API version 1.4. Supported version: %1.%2.%3")
                           .arg(supportedApiVersion.majorVersion())
                           .arg(supportedApiVersion.minorVersion())
                           .arg(supportedApiVersion.microVersion()));
@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
     else if (supportedApiVersion >= QVersionNumber(1, 3)) 
     {
         vulkanInstance.setApiVersion(QVersionNumber(1, 3));
-        logMessages.append(QString("; Requesting Vulkan API version 1.3. Supported version: %1.%2.%3")
+        logMessages.append(QString(" Requesting Vulkan API version 1.3. Supported version: %1.%2.%3")
                           .arg(supportedApiVersion.majorVersion())
                           .arg(supportedApiVersion.minorVersion())
                           .arg(supportedApiVersion.microVersion()));
@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
     else if(supportedApiVersion >= QVersionNumber(1, 2)) 
     {
         vulkanInstance.setApiVersion(QVersionNumber(1, 2));
-        logMessages.append(QString("; Requesting Vulkan API version 1.2. Supported version: %1.%2.%3")
+        logMessages.append(QString(" Requesting Vulkan API version 1.2. Supported version: %1.%2.%3")
                           .arg(supportedApiVersion.majorVersion())
                           .arg(supportedApiVersion.minorVersion())
                           .arg(supportedApiVersion.microVersion()));
@@ -187,7 +187,7 @@ int main(int argc, char *argv[])
     else 
     {
         vulkanInstance.setApiVersion(supportedApiVersion);
-        logMessages.append(QString("; Vulkan API version 1.2 or higher is not supported. Supported version: %1.%2.%3")
+        logMessages.append(QString(" Vulkan API version 1.2 or higher is not supported. Supported version: %1.%2.%3")
                           .arg(supportedApiVersion.majorVersion())
                           .arg(supportedApiVersion.minorVersion())
                           .arg(supportedApiVersion.microVersion()));

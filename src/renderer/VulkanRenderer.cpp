@@ -43,42 +43,19 @@ void VulkanRenderer::initResources()
     const VkSampleCountFlagBits msaaSamples = m_window->sampleCountFlagBits();
 
     // Create Compute Descriptor Set Layout
-    std::array <VkDescriptorSetLayoutBinding, 3> computeBindings{};
-    computeBindings[0] = UniformBufferObject::getDescriptorSetLayoutBinding(0);
-
-    computeBindings[1].binding = 1;
-    computeBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    computeBindings[1].descriptorCount = 1;
-    computeBindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-    computeBindings[1].pImmutableSamplers = nullptr;
-
-    computeBindings[2].binding = 2;
-    computeBindings[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    computeBindings[2].descriptorCount = 1;
-    computeBindings[2].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-    computeBindings[2].pImmutableSamplers = nullptr;
-
-    VkDescriptorSetLayoutCreateInfo computeLayoutInfo{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = static_cast<uint32_t>(computeBindings.size()),
-        .pBindings = computeBindings.data()
-    };
-
-    m_computeDescriptorSetLayout = new VkDescriptorSetLayout;
-    if (m_devFuncs->vkCreateDescriptorSetLayout(m_window->device(), &computeLayoutInfo, nullptr, m_computeDescriptorSetLayout) != VK_SUCCESS) 
+    if (this->createComputeDescriptorSetLayout() != VK_SUCCESS) 
     {
         throw std::runtime_error("Failed to create compute descriptor set layout.");
     }
 
     // Create shader module
     const QString appDir = qApp->applicationDirPath(); 
+
     const QString fragPath = QDir(appDir).filePath("shaders/frag.spv");
     const QString vertPath = QDir(appDir).filePath("shaders/vert.spv");
-    const QString compPath = QDir(appDir).filePath("shaders/comp.spv");
 
     auto vertShaderModule = this->createShaderModule(vertPath);
     auto fragShaderModule = this->createShaderModule(fragPath);
-    auto compShaderModule = this->createShaderModule(compPath);
 
     // Shader stage creation
     std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
@@ -98,13 +75,6 @@ void VulkanRenderer::initResources()
         .pName = "main"
     };
     shaderStages.push_back(fragmentShaderStageInfo);
-
-    VkPipelineShaderStageCreateInfo computeShaderStageInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = VK_SHADER_STAGE_COMPUTE_BIT,
-        .module = compShaderModule,
-        .pName = "main"
-    };
 
     // Dynamic states (specify at draw time)
     std::vector<VkDynamicState> dynamicStates = {
@@ -205,33 +175,6 @@ void VulkanRenderer::initResources()
         .pAttachments = &colorBlendAttachment
     };
 
-    // Uniforms and Push Constants
-    // VkDescriptorSetLayoutBinding uboLayoutBinding = UniformBufferObject::getDescriptorSetLayoutBinding(0);
-    // VkDescriptorSetLayoutBinding samplerBinding = {
-    //     .binding = 1,
-    //     .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-    //     .descriptorCount = 1,
-    //     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-    //     .pImmutableSamplers = nullptr
-    // };
-
-    // std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, samplerBinding};
-
-    // VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo{
-    //     .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-    //     .bindingCount = static_cast<uint32_t>(bindings.size()),
-    //     .pBindings = bindings.data()
-    // };
-
-    // m_descriptorSetLayout = new VkDescriptorSetLayout;
-    
-    // VkResult result = m_devFuncs->vkCreateDescriptorSetLayout(m_window->device(), &descriptorSetLayoutInfo, nullptr, m_descriptorSetLayout);
-    // if (result != VK_SUCCESS) 
-    // {
-    //     qWarning() << "Failed to create descriptor set layout, VkResult:" << result;
-    //     throw std::runtime_error("Failed to create descriptor set layout");
-    // }
-
     // Pipeline Layout
     // VkPipelineLayoutCreateInfo pipelineLayoutInfo{
     //     .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -242,10 +185,9 @@ void VulkanRenderer::initResources()
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo;
     m_pipelineLayout = new VkPipelineLayout;
-    VkResult result = m_devFuncs->vkCreatePipelineLayout(m_window->device(), &pipelineLayoutInfo, nullptr, m_pipelineLayout);
-    if (result != VK_SUCCESS) 
+    if (m_devFuncs->vkCreatePipelineLayout(m_window->device(), &pipelineLayoutInfo, nullptr, m_pipelineLayout) != VK_SUCCESS)
     {
-        qWarning() << "Failed to create pipeline layout, VkResult:" << result;
+        qWarning() << "Failed to create pipeline layout";
         throw std::runtime_error("Failed to create pipeline layout");
     }
 
@@ -269,10 +211,9 @@ void VulkanRenderer::initResources()
     };
 
     m_graphicsPipeline = new VkPipeline;
-    result = m_devFuncs->vkCreateGraphicsPipelines(m_window->device(), VK_NULL_HANDLE, 1, &graphicsPipelineInfo, nullptr, m_graphicsPipeline);
-    if (result != VK_SUCCESS) 
+    if (m_devFuncs->vkCreateGraphicsPipelines(m_window->device(), VK_NULL_HANDLE, 1, &graphicsPipelineInfo, nullptr, m_graphicsPipeline) != VK_SUCCESS) 
     {
-        qWarning() << "Failed to create graphics pipeline, VkResult:" << result;
+        qWarning() << "Failed to create graphics pipeline";
         throw std::runtime_error("Failed to create graphics pipeline");
     }
 
@@ -280,54 +221,17 @@ void VulkanRenderer::initResources()
     m_devFuncs->vkDestroyShaderModule(m_window->device(), vertShaderModule, nullptr);
     m_devFuncs->vkDestroyShaderModule(m_window->device(), fragShaderModule, nullptr);
 
-    // Create Texture Image
-    // const QString texturePath = QDir(appDir).filePath("textures/viking_room.png");
-    // m_textureImage = new VkImage;
-    // m_textureImageMemory = new VkDeviceMemory;
-
-    // result = this->createTextureImage(texturePath, *m_textureImage, *m_textureImageMemory);
-    // if (result != VK_SUCCESS)
-    // {        
-    //     qWarning() << "Failed to create texture image, VkResult:" << result;
-    //     // throw std::runtime_error("Failed to create texture image");
-    // }
-
-    // // Create Texture Image View
-    // m_textureImageView = new VkImageView;
-
-    // result = this->createImageView(*m_textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, *m_textureImageView);
-    // if (result != VK_SUCCESS)
-    // {
-    //     qWarning() << "Failed to create texture image view, VkResult:" << result;
-    // }
-
-    // // Create Texture Sampler
-    // m_textureSampler = new VkSampler;
-    // result = this->createTextureSampler(*m_textureSampler);
-    // if (result != VK_SUCCESS)    {
-    //     qWarning() << "Failed to create texture sampler, VkResult:" << result;
-    // }
-
-    // this->loadModel(QDir(appDir).filePath("models/viking_room.obj"));
-
-    // Create Buffers
-    // this->createVertexBuffer();
-    // this->createIndexBuffer();
-    // this->createUniformBuffers();
-
-    // result = this->createDescriptorPool();
-    // if (result != VK_SUCCESS)
-    // {
-    //     qWarning() << "Failed to create descriptor pool, VkResult:" << result;
-    // }
-
-    // result = this->createDescriptorSets();
-    // if (result != VK_SUCCESS)
-    // {
-    //     qWarning() << "Failed to create descriptor sets, VkResult:" << result;
-    // }
-
     // Create Compute Pipeline
+    const QString compPath = QDir(appDir).filePath("shaders/comp.spv");
+    auto compShaderModule = this->createShaderModule(compPath);
+
+    VkPipelineShaderStageCreateInfo computeShaderStageInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_COMPUTE_BIT,
+        .module = compShaderModule,
+        .pName = "main"
+    };
+
     VkPipelineLayoutCreateInfo computePipelineLayoutInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = 1,
@@ -335,10 +239,9 @@ void VulkanRenderer::initResources()
     };
 
     m_computePipelineLayout = new VkPipelineLayout;
-    result = m_devFuncs->vkCreatePipelineLayout(m_window->device(), &computePipelineLayoutInfo, nullptr, m_computePipelineLayout);
-    if (result != VK_SUCCESS)
+    if (m_devFuncs->vkCreatePipelineLayout(m_window->device(), &computePipelineLayoutInfo, nullptr, m_computePipelineLayout) != VK_SUCCESS)
     {
-        qWarning() << "Failed to create compute pipeline layout, VkResult:" << result;
+        qWarning() << "Failed to create compute pipeline layout";
         throw std::runtime_error("Failed to create compute pipeline layout");       
     }
 
@@ -349,35 +252,33 @@ void VulkanRenderer::initResources()
     };
 
     m_computePipeline = new VkPipeline;
-    result = m_devFuncs->vkCreateComputePipelines(m_window->device(), VK_NULL_HANDLE, 1, &computePipelineInfo, nullptr, m_computePipeline);
-    if (result != VK_SUCCESS)
+    if (m_devFuncs->vkCreateComputePipelines(m_window->device(), VK_NULL_HANDLE, 1, &computePipelineInfo, nullptr, m_computePipeline) != VK_SUCCESS)
     {
-        qWarning() << "Failed to create compute pipeline, VkResult:" << result;
+        qWarning() << "Failed to create compute pipeline.";
         throw std::runtime_error("Failed to create compute pipeline");
     }
 
+    // Delete compute shader module
+    m_devFuncs->vkDestroyShaderModule(m_window->device(), compShaderModule, nullptr);
+
     // Create Shader Storage Buffers
-    result = this->createShaderStorageBuffers();
-    if (result != VK_SUCCESS)    {
-        qWarning() << "Failed to create shader storage buffers, VkResult:" << result;
+    if (this->createShaderStorageBuffers() != VK_SUCCESS)    {
+        qWarning() << "Failed to create shader storage buffers";
     }
 
     // Create Uniform Buffers
-    result = this->createUniformBuffers();
-    if (result != VK_SUCCESS)    {
-        throw std::runtime_error("Failed to create uniform buffers, VkResult:" + std::to_string(result));
+    if (this->createUniformBuffers() != VK_SUCCESS)    {
+        throw std::runtime_error("Failed to create uniform buffers");
     }
 
     // Create Descriptor Pool
-    result = this->createDescriptorPool();
-    if (result != VK_SUCCESS)    {
-        throw std::runtime_error("Failed to create descriptor pool, VkResult:" + std::to_string(result));
+    if (this->createDescriptorPool() != VK_SUCCESS)    {
+        throw std::runtime_error("Failed to create descriptor pool");
     }
 
     // Create Compute Descriptor Sets
-    result = this->createComputeDescriptorSets();
-    if (result != VK_SUCCESS)    {
-        throw std::runtime_error("Failed to create compute descriptor sets, VkResult:" + std::to_string(result));
+    if (this->createComputeDescriptorSets() != VK_SUCCESS)    {
+        throw std::runtime_error("Failed to create compute descriptor sets");
     }
 
     // Create Compute Command Buffers
@@ -390,10 +291,14 @@ void VulkanRenderer::initResources()
         .commandBufferCount = static_cast<uint32_t>(m_computeCommandBuffers.size())
     };
 
-    VkResult result = m_devFuncs->vkAllocateCommandBuffers(m_window->device(), &commandBufferAllocInfo, m_computeCommandBuffers.data());
-    if (result != VK_SUCCESS)
+    if (m_devFuncs->vkAllocateCommandBuffers(m_window->device(), &commandBufferAllocInfo, m_computeCommandBuffers.data()) != VK_SUCCESS)
     {
-        throw std::runtime_error("Failed to allocate compute command buffers, VkResult:" + std::to_string(result));
+        throw std::runtime_error("Failed to allocate compute command buffers");
+    }
+
+    // Create Synch Objects
+    if (this->createSyncObjects() != VK_SUCCESS)    {
+        throw std::runtime_error("Failed to create synchronization objects");
     }
 }
 
@@ -483,12 +388,15 @@ void VulkanRenderer::releaseResources()
             delete m_shaderStorageBuffers[i];
             m_shaderStorageBuffers[i] = nullptr;
         }
+    }
 
-        if (m_shaderStorageBuffersMemory[i]) 
+    for (auto ssbm : m_shaderStorageBuffersMemory) 
+    {
+        if (ssbm) 
         {
-            m_devFuncs->vkFreeMemory(m_window->device(), *m_shaderStorageBuffersMemory[i], nullptr);
-            delete m_shaderStorageBuffersMemory[i];
-            m_shaderStorageBuffersMemory[i] = nullptr;
+            m_devFuncs->vkFreeMemory(m_window->device(), *ssbm, nullptr);
+            delete ssbm;
+            ssbm = nullptr;
         }
     }
 
@@ -535,6 +443,50 @@ void VulkanRenderer::releaseResources()
         delete m_textureSampler;
         m_textureSampler = nullptr;
     }
+
+    // Compute Pipeline
+    if (m_computePipeline)
+    {
+        m_devFuncs->vkDestroyPipeline(m_window->device(), *m_computePipeline, nullptr);
+        delete m_computePipeline;
+        m_computePipeline = nullptr;
+    }
+
+    if (m_computePipelineLayout)
+    {
+        m_devFuncs->vkDestroyPipelineLayout(m_window->device(), *m_computePipelineLayout, nullptr);
+        delete m_computePipelineLayout;
+        m_computePipelineLayout = nullptr;
+    }
+
+    for (size_t i = 0; i < m_computeCommandBuffers.size(); i++)
+    {
+        if (m_computeCommandBuffers[i]) 
+        {
+            m_devFuncs->vkFreeCommandBuffers(m_window->device(), m_window->graphicsCommandPool(), 1, &m_computeCommandBuffers[i]);
+            m_computeCommandBuffers[i] = VK_NULL_HANDLE;
+        }
+    }
+
+    m_computeCommandBuffers.clear();
+
+    // Synchronization Objects
+    if (m_semaphore)
+    {
+        m_devFuncs->vkDestroySemaphore(m_window->device(), *m_semaphore, nullptr);
+        delete m_semaphore;
+        m_semaphore = nullptr;
+    }
+
+    for (auto fence : m_inFlightFences) 
+    {
+        if (fence) 
+        {
+            m_devFuncs->vkDestroyFence(m_window->device(), fence, nullptr);
+        }
+    }
+
+    m_inFlightFences.clear();
 }
 
 //----------------------------------------------------------------------------------
@@ -601,8 +553,6 @@ void VulkanRenderer::startNextFrame()
     //     return;
     // }
 
-    m_devFuncs->vkResetFences(m_window->device(), 1, &m_inFlightFences[m_window->currentFrame()]);
-
     // Update timeline value for this frame
     uint64_t computeWaitValue = m_timelineValue;
     uint64_t computeSignalValue = ++m_timelineValue;
@@ -610,11 +560,124 @@ void VulkanRenderer::startNextFrame()
     uint64_t graphicsSignalValue = ++m_timelineValue;
 
     this->updateUniformBuffer();
+
+    // Record compute command buffer for this frame
+    if (this->recordComputeCommandBuffer() != VK_SUCCESS) 
+    {
+        qWarning() << "Failed to record compute command buffer.";
+        return;
+    }
+
+    VkTimelineSemaphoreSubmitInfo computeTimelineInfo{
+            .sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
+            .waitSemaphoreValueCount = 1,
+            .pWaitSemaphoreValues = &computeWaitValue,
+            .signalSemaphoreValueCount = 1,
+            .pSignalSemaphoreValues = &computeSignalValue
+    };
+
+    VkPipelineStageFlags computeWaitStages[] = {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT};
+
+    // submit compute command buffer with timeline semaphore signaling
+    VkSubmitInfo computeSubmitInfo{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext = &computeTimelineInfo,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = m_semaphore,
+        .pWaitDstStageMask = computeWaitStages,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &m_computeCommandBuffers[m_window->currentFrame()],
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores = m_semaphore
+    };
+
+    if (m_devFuncs->vkQueueSubmit(m_window->graphicsQueue(), 1, &computeSubmitInfo, VK_NULL_HANDLE) != VK_SUCCESS) 
+    {
+        qWarning() << "Failed to submit compute command buffer.";
+        return;
+    }
+
+    // Record graphics command buffer for this frame
     this->recordCommandBuffer();
+
+    VkPipelineStageFlags graphicsWaitStages[] = {VK_PIPELINE_STAGE_VERTEX_INPUT_BIT};
+
+    VkTimelineSemaphoreSubmitInfo graphicsTimelineInfo{
+            .sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
+            .waitSemaphoreValueCount = 1,
+            .pWaitSemaphoreValues = &graphicsWaitValue,
+            .signalSemaphoreValueCount = 1,
+            .pSignalSemaphoreValues = &graphicsSignalValue
+    };
+
+    auto commandBuffer = m_window->currentCommandBuffer();
+    VkSubmitInfo graphicsSubmitInfo{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext = &graphicsTimelineInfo,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = m_semaphore,
+        .pWaitDstStageMask = graphicsWaitStages,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &commandBuffer,
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores = m_semaphore
+    };
+
+    if (m_devFuncs->vkQueueSubmit(m_window->graphicsQueue(), 1, &graphicsSubmitInfo, VK_NULL_HANDLE) != VK_SUCCESS) 
+    {
+        qWarning() << "Failed to submit graphics command buffer.";
+        return;
+    }
+
+    // Wait for the graphics queue to finish before presenting the frame.  This ensures that the present wait semaphore won't be reused while still pending in the presentation engine.
+    VkSemaphoreWaitInfo waitInfo{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
+        .semaphoreCount = 1,
+        .pSemaphores = m_semaphore,
+        .pValues = &graphicsSignalValue
+    };
+
+    if (m_devFuncs->vkWaitSemaphores(m_window->device(), &waitInfo, UINT64_MAX) != VK_SUCCESS) 
+    {
+        qWarning() << "Failed to wait for graphics semaphore.";
+        return;
+    }
 
     // QVulkanWindow performs acquire/submit/present and frame sync internally.
     m_window->frameReady();
-    // m_window->requestUpdate();
+    m_window->requestUpdate();
+}
+
+//----------------------------------------------------------------------------------
+VkResult VulkanRenderer::recordComputeCommandBuffer()
+{
+    auto commandBuffer = m_computeCommandBuffers[m_window->currentFrame()];
+    
+    VkCommandBufferResetFlags resetFlags;
+    if (m_devFuncs->vkResetCommandBuffer(commandBuffer, resetFlags) != VK_SUCCESS) 
+    {
+        qWarning() << "Failed to reset compute command buffer.";
+    }
+
+    VkCommandBufferBeginInfo beginInfo{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+    };
+
+    if (m_devFuncs->vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) 
+    {
+        qWarning() << "Failed to begin recording compute command buffer.";
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+
+    m_devFuncs->vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, *m_computePipeline);
+    m_devFuncs->vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, *m_computePipelineLayout, 0, 1, &m_computeDescriptorSets[m_window->currentFrame()], 0, nullptr);
+
+    // Dispatch compute shader with enough workgroups to cover all particles
+    uint32_t groupCountX = (PARTICLE_COUNT + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+    m_devFuncs->vkCmdDispatch(commandBuffer, groupCountX, 1, 1);
+
+    return m_devFuncs->vkEndCommandBuffer(commandBuffer);
 }
 
 //----------------------------------------------------------------------------------
@@ -641,40 +704,6 @@ void VulkanRenderer::recordCommandBuffer()
             clearValues[i].depthStencil = VkClearDepthStencilValue{ .depth = 1.0f, .stencil = 0 };
         }
     }
-
-    // VkClearValue clearColor = { .color = VkClearColorValue{ .float32 = {0.0f, 0.0f, 0.0f, 1.0f} } };
-    // VkClearValue clearDepthStencil = { .depthStencil = VkClearDepthStencilValue{ .depth = 1.0f, .stencil = 0 } };
-
-    // VkRenderingAttachmentInfo colorAttachmentInfo{
-    //     .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-    //     .imageView = m_window->swapChainImageView(m_window->currentSwapChainImageIndex()),
-    //     .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
-    //     .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-    //     .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-    //     .clearValue = clearColor
-    // };
-
-    // VkRenderingAttachmentInfo depthAttachmentInfo{
-    //     .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-    //     .imageView = m_window->depthStencilImageView(),
-    //     .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-    //     .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-    //     .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-    //     .clearValue = clearDepthStencil
-    // };
-
-    // VkRenderingInfo renderingInfo{
-    //     .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-    //     .renderArea = {
-    //         .offset = {0, 0},
-    //         .extent = {.width = static_cast<uint32_t>(swapChainImageSize.width()), .height = static_cast<uint32_t>(swapChainImageSize.height())}
-    //     },
-    //     .layerCount = 1,
-    //     .viewMask = 0,
-    //     .colorAttachmentCount = 1,
-    //     .pColorAttachments = &colorAttachmentInfo,
-    //     .pDepthAttachment = &depthAttachmentInfo,
-    // };
     
     VkRenderPassBeginInfo renderPassInfo = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -689,15 +718,14 @@ void VulkanRenderer::recordCommandBuffer()
     };
 
     auto commandBuffer = m_window->currentCommandBuffer();
-    // auto vkCmdBeginRendering = reinterpret_cast<PFN_vkCmdBeginRendering>(m_window->vulkanInstance()->getInstanceProcAddr("vkCmdBeginRendering"));
-    // vkCmdBeginRendering(commandBuffer, &renderingInfo);
+    VkCommandBufferResetFlags resetFlags;
+    if (m_devFuncs->vkResetCommandBuffer(commandBuffer, resetFlags) != VK_SUCCESS) 
+    {
+        qWarning() << "Failed to reset compute command buffer.";
+    }
+
     m_devFuncs->vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     m_devFuncs->vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_graphicsPipeline);
-
-    const VkBuffer vertexBuffers[] = {*m_vertexBuffer};
-    const VkDeviceSize offsets[] = {0};
-    m_devFuncs->vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-    m_devFuncs->vkCmdBindIndexBuffer(commandBuffer, *m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     VkViewport viewPort = {
         .x = 0.0f,
@@ -715,11 +743,15 @@ void VulkanRenderer::recordCommandBuffer()
     };
     m_devFuncs->vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    // Draw
-    // m_devFuncs->vkCmdDraw(commandBuffer, 3, 1, 0, 0);
-    m_devFuncs->vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_pipelineLayout, 0, 1, &m_computeDescriptorSets[m_window->currentFrame()], 0, nullptr);
-    m_devFuncs->vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_indices.size()), 1, 0, 0, 0);
+    // const VkBuffer vertexBuffers[] = {*m_vertexBuffer};
+    // const VkDeviceSize offsets[] = {0};
+    // m_devFuncs->vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+    // m_devFuncs->vkCmdBindIndexBuffer(commandBuffer, *m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+    m_devFuncs->vkCmdBindVertexBuffers(commandBuffer, 0, 1, {m_shaderStorageBuffers[m_window->currentFrame()]}, {0});
 
+    // Draw
+    m_devFuncs->vkCmdDraw(commandBuffer, PARTICLE_COUNT, 1, 0, 0);
+    // m_devFuncs->vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_indices.size()), 1, 0, 0, 0);
     m_devFuncs->vkCmdEndRenderPass(commandBuffer);
     // auto vkCmdEndRendering = reinterpret_cast<PFN_vkCmdEndRendering>(m_window->vulkanInstance()->getInstanceProcAddr("vkCmdEndRendering"));
     // vkCmdEndRendering(commandBuffer);
@@ -1407,27 +1439,15 @@ VkResult VulkanRenderer::createDescriptorPool()
 {
     // Create a descriptor pool that can allocate descriptor sets for our uniform buffers.
     // This is needed if we want to use descriptor sets to bind our uniform buffers to the pipeline.
-    // VkDescriptorPoolSize uniformPoolSize{
-    //     .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    //     .descriptorCount = static_cast<uint32_t>(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT)
-    // };
-
-    // VkDescriptorPoolSize samplerPoolSize{
-    //     .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-    //     .descriptorCount = static_cast<uint32_t>(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT)
-    // };
-
-    // std::array<VkDescriptorPoolSize, 2> poolSizes = {uniformPoolSize, samplerPoolSize};
-
     std::array<VkDescriptorPoolSize, 2> poolSizes = {
-        VkDescriptorPoolSize{
-            .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .descriptorCount = static_cast<uint32_t>(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT)
-        },
-         VkDescriptorPoolSize
+        VkDescriptorPoolSize
         {
             .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount = static_cast<uint32_t>(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT)
+        },
+        VkDescriptorPoolSize{
+            .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .descriptorCount = static_cast<uint32_t>(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT * 2) // We have 2 storage buffers per frame (current and last frame)
         }
     };
     
@@ -1444,14 +1464,48 @@ VkResult VulkanRenderer::createDescriptorPool()
 }
 
 //----------------------------------------------------------------------------------
+VkResult VulkanRenderer::createComputeDescriptorSetLayout()
+{
+    std::array <VkDescriptorSetLayoutBinding, 3> computeBindings{};
+    
+    computeBindings[0] = UniformBufferObject::getDescriptorSetLayoutBinding(0);
+
+    computeBindings[1] = VkDescriptorSetLayoutBinding{
+        .binding = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .descriptorCount = 1,
+        .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+        .pImmutableSamplers = nullptr
+    };
+
+    computeBindings[2] = VkDescriptorSetLayoutBinding{
+        .binding = 2,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .descriptorCount = 1,
+        .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+        .pImmutableSamplers = nullptr
+    };
+
+    VkDescriptorSetLayoutCreateInfo computeLayoutInfo{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = static_cast<uint32_t>(computeBindings.size()),
+        .pBindings = computeBindings.data()
+    };
+
+    m_computeDescriptorSetLayout = new VkDescriptorSetLayout;
+    return m_devFuncs->vkCreateDescriptorSetLayout(m_window->device(), &computeLayoutInfo, nullptr, m_computeDescriptorSetLayout);
+}
+
+//----------------------------------------------------------------------------------
 VkResult VulkanRenderer::createComputeDescriptorSets()
 {
     // Allocate and configure descriptor sets for our compute shader's storage buffers.
     std::vector<VkDescriptorSetLayout> layouts(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT, *m_computeDescriptorSetLayout);
+    
     VkDescriptorSetAllocateInfo allocInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
         .descriptorPool = *m_descriptorPool,
-        .descriptorSetCount = static_cast<uint32_t>(layouts.size()),
+        .descriptorSetCount = static_cast<uint32_t>(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT),
         .pSetLayouts = layouts.data()
     };
 
@@ -1519,68 +1573,6 @@ VkResult VulkanRenderer::createComputeDescriptorSets()
 
     return VK_SUCCESS;
 }
-
-//----------------------------------------------------------------------------------
-// VkResult VulkanRenderer::createDescriptorSets() 
-// {
-//     // Allocate and configure descriptor sets for our uniform buffers.
-//     std::vector<VkDescriptorSetLayout> layouts(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT, *m_descriptorSetLayout);
-//     VkDescriptorSetAllocateInfo allocInfo{
-//         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-//         .descriptorPool = *m_descriptorPool,
-//         .descriptorSetCount = static_cast<uint32_t>(layouts.size()),
-//         .pSetLayouts = layouts.data()
-//     };
-
-//     m_descriptorSets.clear();
-//     m_descriptorSets.resize(QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT);
-
-//     VkResult result = m_devFuncs->vkAllocateDescriptorSets(m_window->device(), &allocInfo, m_descriptorSets.data());
-//     if (result != VK_SUCCESS) 
-//     {
-//         return result;
-//     }
-
-//     for (size_t i = 0; i < QVulkanWindow::MAX_CONCURRENT_FRAME_COUNT; i++) 
-//     {
-//         VkDescriptorBufferInfo bufferInfo{
-//             .buffer = *m_uniformBuffers[i],
-//             .offset = 0,
-//             .range = sizeof(UniformBufferObject)
-//         };
-
-//         VkDescriptorImageInfo imageInfo{
-//             .sampler = *m_textureSampler,
-//             .imageView = *m_textureImageView,
-//             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-//         };
-
-//         VkWriteDescriptorSet descriptorWriteUniform{
-//             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-//             .dstSet = m_descriptorSets[i],
-//             .dstBinding = 0,
-//             .dstArrayElement = 0,
-//             .descriptorCount = 1,
-//             .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-//             .pBufferInfo = &bufferInfo
-//         };
-
-//         VkWriteDescriptorSet descriptorWriteImage{
-//             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-//             .dstSet = m_descriptorSets[i],
-//             .dstBinding = 1,
-//             .dstArrayElement = 0,
-//             .descriptorCount = 1,
-//             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-//             .pImageInfo = &imageInfo
-//         };
-
-//         std::array<VkWriteDescriptorSet, 2> descriptorWrites = {descriptorWriteUniform, descriptorWriteImage};
-//         m_devFuncs->vkUpdateDescriptorSets(m_window->device(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
-//     }
-
-//     return VK_SUCCESS;
-// }
 
 //----------------------------------------------------------------------------------
 VkResult VulkanRenderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) 
@@ -1668,7 +1660,7 @@ VkResult VulkanRenderer::createShaderStorageBuffers()
     std::vector<Particle> particles(PARTICLE_COUNT);
     for (size_t i = 0; i < PARTICLE_COUNT; i++)
     {        
-        float angle = rndDist(rndEngine) * 2.0f * M_PI;
+        float angle = rndDist(rndEngine) * 2.0f * glm::pi<float>();
         float radius = 0.25f * std::sqrt(rndDist(rndEngine));
         float x = radius * std::cos(angle) * static_cast<float>(m_window->height()) / static_cast<float>(m_window->width());
         float y = radius * std::sin(angle);
@@ -1735,7 +1727,6 @@ VkResult VulkanRenderer::createShaderStorageBuffers()
     }
 
     return VK_SUCCESS;
-
 }
 
 //----------------------------------------------------------------------------------
