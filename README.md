@@ -1,7 +1,7 @@
 # Vitrine
 <img width="1050" height="959" alt="Vulkan Screenshot" src="https://github.com/user-attachments/assets/74f41c63-6b02-467f-909b-e57aae9b50e2" />
 
-Qt6 application that renders through an [ANARI](https://www.khronos.org/anari/) device. All Vulkan work happens inside the ANARI backend — typically [Phenocryst](https://github.com/griffin28/Phenocryst), an out-of-tree Vulkan-backed ANARI rendering device. The Qt side displays the ANARI framebuffer and exposes a runtime UI for selecting the backend library and editing its renderer parameters via ANARI introspection.
+Qt6 application that renders through an [ANARI](https://www.khronos.org/anari/) device. All Vulkan work happens inside the ANARI backend — typically [Phenocryst](https://github.com/KSG-Technology-Consulting/Phenocryst), an out-of-tree Vulkan-backed ANARI rendering device. The Qt side displays the ANARI framebuffer and exposes a runtime UI for selecting the backend library and editing its renderer parameters via ANARI introspection.
 
 ## Project layout
 
@@ -16,7 +16,7 @@ Qt6 application that renders through an [ANARI](https://www.khronos.org/anari/) 
 - Qt6 (Core, Gui, Widgets, Test)
 - ANARI SDK 0.16+
 - At least one installed ANARI backend library, e.g.:
-  - [Phenocryst](https://github.com/griffin28/Phenocryst) (Vulkan, default)
+  - [Phenocryst](https://github.com/KSG-Technology-Consulting/Phenocryst) (Vulkan, default)
   - `helide` (CPU/embree, ships with the ANARI SDK)
   - `visrtx` (NVIDIA OptiX, ships with the ANARI SDK)
 
