@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QProcessEnvironment>
 #include <QString>
 
 #include <iostream>
@@ -33,6 +34,11 @@ int main(int argc, char *argv[])
                 std::cerr << "--anari-library requires a value." << std::endl;
             }
         }
+    }
+
+    if (anariLibrary.isEmpty()) {
+        const auto env = QProcessEnvironment::systemEnvironment();
+        anariLibrary = env.value(QStringLiteral("ANARI_LIBRARY"));
     }
 
     QApplication app(argc, argv);

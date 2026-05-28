@@ -46,17 +46,17 @@ The main executable target is `Vitrine`.
 
 ## Run
 
-After building, set `ANARI_LIBRARY_PATH` so the ANARI loader can find your backend's shared library, then run:
+After building, set `LD_LIBRARY_PATH` so the ANARI loader can find your backend's shared library, then run:
 
 ```bash
-ANARI_LIBRARY_PATH=/path/to/backend/lib ./build/bin/Vitrine [--dark|--light] [--anari-library <name>]
+LD_LIBRARY_PATH=/path/to/backend/lib ./build/bin/Vitrine [--dark|--light] [--anari-library <name>]
 ```
 
 Examples:
 
 ```bash
 # Phenocryst (default)
-ANARI_LIBRARY_PATH=/path/to/Phenocryst/build ./build/bin/Vitrine
+LD_LIBRARY_PATH=/path/to/Phenocryst/build ./build/bin/Vitrine
 
 # Helide
 ./build/bin/Vitrine --anari-library helide
@@ -71,7 +71,7 @@ Enable tests during configure:
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_APP_TESTS=ON
 cmake --build build -j
-ANARI_LIBRARY_PATH=/path/to/Phenocryst/build \
+LD_LIBRARY_PATH=/path/to/Phenocryst/build \
   ctest --test-dir build --output-on-failure
 ```
 

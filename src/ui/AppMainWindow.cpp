@@ -231,7 +231,7 @@ void AppMainWindow::showAboutDialog()
                        tr("About Vitrine"),
                        tr("<h2>Vitrine</h2>"
                           "Qt6 application rendering through an ANARI device.<br>"
-                          "<p>Copyright &copy; 2026 Dr. Kevin S. Griffin kevin.s.griffin@gmail.com"));
+                          "<p>Copyright &copy; 2036 Dr. Kevin S. Griffin kevin.s.griffin@gmail.com"));
 }
 
 void AppMainWindow::showRenderingOptionsDialog()

@@ -55,15 +55,13 @@ namespace AnariUtils
 
 QStringList enumerateBackendLibraries()
 {
-    // Start with the libraries we know about; users running outside a
-    // configured ANARI_LIBRARY_PATH still see Phenocryst as the first
+    // Users running outside a configured
+    // LD_LIBRARY_PATH still see Phenocryst as the first
     // choice.
-    QStringList result{QStringLiteral("phenocryst"),
-                       QStringLiteral("helide"),
-                       QStringLiteral("visrtx")};
+    QStringList result{QStringLiteral("phenocryst")};
 
     const auto env = QProcessEnvironment::systemEnvironment();
-    const QString path = env.value(QStringLiteral("ANARI_LIBRARY_PATH"));
+    const QString path = env.value(QStringLiteral("LD_LIBRARY_PATH"));
     if (path.isEmpty()) {
         return result;
     }

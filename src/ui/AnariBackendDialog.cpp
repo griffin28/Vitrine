@@ -85,6 +85,7 @@ AnariBackendDialog::AnariBackendDialog(const QString& initialLibrary,
     int initialLibIndex = m_libraryCombo->findText(
         initialLibrary.isEmpty() ? QStringLiteral("phenocryst") : initialLibrary);
     if (initialLibIndex < 0) {
+        m_libraryCombo->insertItem(0, initialLibrary);
         initialLibIndex = 0;
     }
     m_libraryCombo->setCurrentIndex(initialLibIndex);
