@@ -1,10 +1,11 @@
 set(RENDERER_SRCS
-    VulkanRenderer.cpp
+    AnariRenderer.h
+    AnariRenderer.cpp
 )
 
 add_library(renderer OBJECT ${RENDERER_SRCS})
 
-target_compile_options(renderer 
+target_compile_options(renderer
     PRIVATE
         $<$<COMPILE_LANGUAGE:CXX>:-fPIC>)
 
@@ -18,8 +19,10 @@ target_include_directories(renderer
         ${Qt6Widgets_INCLUDE_DIRS}
         ${stb_INCLUDE_DIRS}
         ${tinyobjloader_INCLUDE_DIRS}
-        # ${Qt6Vulkan_INCLUDE_DIRS}
-        # ${Vulkan_INCLUDE_DIRS}
-        # ${tinygltf_INCLUDE_DIRS}
-        # ${KTX_INCLUDE_DIRS}
 )
+
+target_link_libraries(renderer
+    PUBLIC
+        anari::anari
+        Qt6::Core
+        Qt6::Gui)

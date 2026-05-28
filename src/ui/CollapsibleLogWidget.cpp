@@ -8,7 +8,7 @@
 #include <QFile>
 #include <QTextStream>
 
-namespace myvulkan 
+namespace vitrine 
 {
 //----------------------------------------------------------------------------------
 CollapsibleLogWidget::CollapsibleLogWidget(const QString &title, int expandedHeight, QWidget* parent) 
@@ -135,4 +135,4 @@ void CollapsibleLogWidget::appendLogMessage(const QString &message, LogLevel lev
 
     m_logText->append(QString("%1 - [%2] %3").arg(timestamp, levelStr, message));
 }
-} // namespace myvulkan
+} // namespace vitrine

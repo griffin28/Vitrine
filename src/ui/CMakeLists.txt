@@ -3,13 +3,15 @@ set(UI_SRCS
     CollapsibleLogWidget.cpp
     AppMainWindow.h
     AppMainWindow.cpp
-    VulkanWindow.h
-    VulkanWindow.cpp
+    AnariFrameWidget.h
+    AnariFrameWidget.cpp
+    AnariBackendDialog.h
+    AnariBackendDialog.cpp
 )
 
 add_library(ui OBJECT ${UI_SRCS})
 
-target_compile_options(ui 
+target_compile_options(ui
     PRIVATE
         $<$<COMPILE_LANGUAGE:CXX>:-fPIC>)
 
@@ -23,3 +25,10 @@ target_include_directories(ui
         ${Qt6Gui_INCLUDE_DIRS}
         ${Qt6Widgets_INCLUDE_DIRS}
 )
+
+target_link_libraries(ui
+    PUBLIC
+        anari::anari
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets)

@@ -6,16 +6,10 @@
 #include <QParallelAnimationGroup>
 #include <QScrollArea>
 
-namespace myvulkan 
-{
-/// @brief Log levels for messages appended to the log panel.
-enum class LogLevel 
-{
-    Info,
-    Warning,
-    Error
-};
+#include "LogLevel.h"
 
+namespace vitrine
+{
 /// @brief A collapsible log widget that can be expanded or collapsed by the user.
 class CollapsibleLogWidget : public QWidget 
 {
@@ -51,4 +45,4 @@ private:
 };
 
 
-} // namespace myvulkan
+} // namespace vitrine

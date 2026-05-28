@@ -24,45 +24,6 @@ macro(create_find_package pkg required quiet components)
 endmacro(create_find_package)
 
 #======== Functions
-function (add_shaders_target TARGET)
-    find_program (GLSLANG_VALIDATOR glslangValidator HINTS $ENV{VULKAN_SDK}/bin REQUIRED)
-    cmake_parse_arguments ("SHADER" "" "" "SOURCES" ${ARGN})
-    set (SHADERS_DIR ${CMAKE_CURRENT_LIST_DIR})
-    add_custom_command (
-            OUTPUT ${SHADERS_DIR}
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADERS_DIR}
-    )
-    add_custom_command (
-        OUTPUT ${SHADERS_DIR}/frag.spv ${SHADERS_DIR}/vert.spv
-        COMMAND ${GLSLANG_VALIDATOR} --target-env vulkan1.0 ${SHADER_SOURCES}
-        WORKING_DIRECTORY ${SHADERS_DIR}
-        DEPENDS ${SHADERS_DIR} ${SHADER_SOURCES}
-        COMMENT "Compiling Shaders"
-        VERBATIM
-    )
-    add_custom_target (${TARGET} DEPENDS ${SHADERS_DIR}/frag.spv ${SHADERS_DIR}/vert.spv)
-endfunction ()
-
-function (add_slang_shader_target TARGET)
-    find_program(SLANGC_EXECUTABLE slangc HINTS $ENV{VULKAN_SDK}/bin REQUIRED)
-    cmake_parse_arguments ("SHADER" "" "" "SOURCES" ${ARGN})
-    set (SHADERS_DIR ${CMAKE_CURRENT_LIST_DIR})
-    set (ENTRY_POINTS -entry vertMain -entry fragMain)
-    add_custom_command (
-            OUTPUT ${SHADERS_DIR}
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADERS_DIR}
-    )
-    add_custom_command (
-            OUTPUT  ${SHADERS_DIR}/slang.spv
-            COMMAND ${SLANGC_EXECUTABLE} ${SHADER_SOURCES} -target spirv -profile spirv_1_4 -emit-spirv-directly -fvk-use-entrypoint-name ${ENTRY_POINTS} -o slang.spv
-            WORKING_DIRECTORY ${SHADERS_DIR}
-            DEPENDS ${SHADERS_DIR} ${SHADER_SOURCES}
-            COMMENT "Compiling Slang Shaders"
-            VERBATIM
-    )
-    add_custom_target (${TARGET} DEPENDS ${SHADERS_DIR}/slang.spv)
-endfunction()
-
 function(AddValgrind target)
     find_program(VALGRIND_PATH valgrind)
     if(NOT VALGRIND_PATH)

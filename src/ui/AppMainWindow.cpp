@@ -1,222 +1,189 @@
 #include "AppMainWindow.h"
-#include "AppUtils.h"
-#include "VulkanWindow.h"
 
-#include <QMenu>
-#include <QMenuBar>
+#include "AnariFrameWidget.h"
+#include "AnariRenderer.h"
+#include "AnariUtils.h"
+
 #include <QAction>
-#include <QIcon>
 #include <QApplication>
-#include <QMessageBox>
-#include <QTextEdit>
-#include <QVBoxLayout>
+#include <QColor>
+#include <QCoreApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
-#include <QComboBox>
+#include <QDir>
 #include <QFormLayout>
+#include <QIcon>
 #include <QLabel>
-#include <QVector>
+#include <QMenu>
+#include <QMenuBar>
+#include <QMessageBox>
 #include <QSettings>
+#include <QVBoxLayout>
 
-#include <algorithm>
-
-namespace myvulkan 
+namespace vitrine
 {
-//----------------------------------------------------------------------------------
-AppMainWindow::AppMainWindow(QVulkanInstance* vulkanInstance, QString vulkanInstanceLogMessage, int gpuIndex, bool darkMode, QWidget *parent) 
-: QMainWindow(parent)
-, m_vulkanInstance(vulkanInstance)
-, m_selectedGpuIndex(gpuIndex)
-, m_darkMode(darkMode)
+
+namespace
 {
-    this->setWindowTitle("Vulkan Sandbox");
-
-    // Load saved UI settings
-    this->loadSettings();
-
-    QString infoLogMessage, warnLogMessage, errorLogMessage;
-    createVulkanWindow(infoLogMessage, warnLogMessage, errorLogMessage);
-    this->createCentralWidget();
-
-    this->createActions();
-    this->createFileMenu();
-    this->createEditMenu();
-    this->createOptionsMenu();
-    this->createHelpMenu();
-
-    // Update Log
-    if(!vulkanInstanceLogMessage.isEmpty()) 
-    {
-        this->appendInfoLogMessage("=========================");
-        this->appendInfoLogMessage("Vulkan Instance Creation: ");
-        this->appendInfoLogMessage("=========================");
-        this->appendInfoLogMessage(vulkanInstanceLogMessage.append("\n"));
-    }
-    this->logSelectedGpuInfo();
-    this->appendInfoLogMessage(infoLogMessage);
-    this->appendWarningLogMessage(warnLogMessage);
-    this->appendErrorLogMessage(errorLogMessage);
+constexpr int kDefaultLogHeight = 200;
 }
 
-//----------------------------------------------------------------------------------
+AppMainWindow::AppMainWindow(const QString& anariLibrary, bool darkMode, QWidget* parent)
+    : QMainWindow(parent), m_darkMode(darkMode)
+{
+    setWindowTitle(tr("Vitrine"));
+
+    loadSettings();
+    if (!anariLibrary.isEmpty()) {
+        m_anariLibrary = anariLibrary;
+    }
+
+    createCentralWidget();
+    createRenderer();
+
+    createActions();
+    createFileMenu();
+    createEditMenu();
+    createOptionsMenu();
+    createHelpMenu();
+
+    startBackend();
+}
+
+AppMainWindow::~AppMainWindow()
+{
+    if (m_renderer) {
+        m_renderer->stop();
+    }
+}
+
 void AppMainWindow::closeEvent(QCloseEvent* event)
 {
-    this->saveSettings();
+    saveSettings();
     QMainWindow::closeEvent(event);
 }
 
-//----------------------------------------------------------------------------------
 void AppMainWindow::loadSettings()
 {
     QSettings settings;
-    settings.beginGroup("AppMainWindow");
+    settings.beginGroup(KGROUP);
+    m_anariLibrary = settings.value(KANARILIB, m_anariLibrary).toString();
+    m_anariDeviceSubtype = settings.value(KANARIDEVICESUBTYPE, m_anariDeviceSubtype).toString();
+    m_anariRendererSubtype = settings.value(KANARIRENDERERSUBTYPE, m_anariRendererSubtype).toString();
 
-    // Multisampling Anti-aliasing
-    m_sampleCount = settings.value(QString::fromUtf8(AppMainWindow::KSAMPLECOUNTKEY), VK_SAMPLE_COUNT_1_BIT).toInt();
-
-    settings.endGroup(); // AppMainWindow
+    m_rendererParameters.clear();
+    const int count = settings.beginReadArray(KANARIPARAMS);
+    for (int i = 0; i < count; ++i) {
+        settings.setArrayIndex(i);
+        AnariBackendDialog::ParamValue p;
+        p.name = settings.value("name").toString();
+        p.type = settings.value("type").toInt();
+        p.value = settings.value("value");
+        if (!p.name.isEmpty()) {
+            m_rendererParameters.push_back(p);
+        }
+    }
+    settings.endArray();
+    settings.endGroup();
 }
 
-//----------------------------------------------------------------------------------
 void AppMainWindow::saveSettings()
 {
     QSettings settings;
-    settings.beginGroup("AppMainWindow");
+    settings.beginGroup(KGROUP);
+    settings.setValue(KANARILIB, m_anariLibrary);
+    settings.setValue(KANARIDEVICESUBTYPE, m_anariDeviceSubtype);
+    settings.setValue(KANARIRENDERERSUBTYPE, m_anariRendererSubtype);
 
-    // Multisampling Anti-aliasing
-    settings.setValue(QString::fromUtf8(AppMainWindow::KSAMPLECOUNTKEY), m_sampleCount);
-
-    settings.endGroup(); // AppMainWindow
+    settings.beginWriteArray(KANARIPARAMS, m_rendererParameters.size());
+    for (int i = 0; i < m_rendererParameters.size(); ++i) {
+        settings.setArrayIndex(i);
+        const auto& p = m_rendererParameters[i];
+        settings.setValue("name", p.name);
+        settings.setValue("type", p.type);
+        settings.setValue("value", p.value);
+    }
+    settings.endArray();
+    settings.endGroup();
 }
 
-//----------------------------------------------------------------------------------
-void AppMainWindow::createVulkanWindow(QString &infoLogMessage, QString &warnLogMessage, QString &errorLogMessage)
-{   
-    m_vulkanWindow = new VulkanWindow();
-    m_vulkanWindow->setVulkanInstance(m_vulkanInstance);
-
-    // Enable device features
-    m_vulkanWindow->setEnabledFeaturesModifier([](VkPhysicalDeviceFeatures& features) {
-        // Enable sample shading if multisampling is supported by the device. This can improve the quality 
-        // of multisampling by allowing the shader to run at a higher frequency than the rasterization samples, 
-        // which can help to reduce aliasing artifacts. However, it can also have a performance impact, 
-        // so it's important to use it judiciously and test the performance implications on the target hardware.
-        features.sampleRateShading = VK_TRUE;
-
-        // Enable anisotropic filtering for better texture quality at oblique angles
-        features.samplerAnisotropy = VK_TRUE;
-    });
-
-    auto availableDevices = m_vulkanWindow->availablePhysicalDevices();
-    if(availableDevices.isEmpty()) 
-    {
-        qDebug() << "No Vulkan-compatible physical devices found.";
-        throw std::runtime_error("No Vulkan-compatible physical devices found.");
-    }
-
-    if (m_selectedGpuIndex >= 0 && m_selectedGpuIndex < availableDevices.size()) 
-    {
-        m_vulkanWindow->setPhysicalDeviceIndex(m_selectedGpuIndex);
-    }
-    else 
-    {
-        if(m_selectedGpuIndex >= availableDevices.size()) 
-        {
-            warnLogMessage.append(tr("Specified GPU index %1 is out of range. There are only %2 available devices. Falling back to automatic selection.")
-                              .arg(m_selectedGpuIndex)
-                              .arg(availableDevices.size()));
-        }
-        
-        m_selectedGpuIndex = AppUtils::pickPhysicalDevice(m_vulkanInstance);
-        m_vulkanWindow->setPhysicalDeviceIndex(m_selectedGpuIndex);
-    }
-    
-    const QList<int> supportedSampleCounts = m_vulkanWindow->supportedSampleCounts();
-    if (!supportedSampleCounts.isEmpty())
-    {
-        int selectedSampleCount = m_sampleCount;
-
-        if (!supportedSampleCounts.contains(selectedSampleCount))
-        {
-            selectedSampleCount = VK_SAMPLE_COUNT_1_BIT;
-            for (const int sampleCount : supportedSampleCounts)
-            {
-                if (sampleCount > selectedSampleCount)
-                {
-                    selectedSampleCount = sampleCount;
-                }
-            }
-        }
-
-        m_sampleCount = selectedSampleCount;
-        m_vulkanWindow->setSampleCount(selectedSampleCount);
-    }
-
-    // Set optional device extensions
-    auto supportedExtensions = m_vulkanWindow->supportedDeviceExtensions();
-    auto requiredExtensions = QByteArrayList{VK_KHR_SPIRV_1_4_EXTENSION_NAME,
-                                             VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME};
-    QByteArrayList validatedExtensions;
-    QByteArrayList unsupportedExtensions;
-
-    for(const auto& ext : requiredExtensions) 
-    {
-        if (std::find_if(supportedExtensions.begin(), supportedExtensions.end(), [&ext](const auto& supportedExt) { return std::strcmp(supportedExt.name, ext.constData()) == 0; }) != supportedExtensions.end()) 
-        {
-            validatedExtensions.append(ext);
-        } else {
-            unsupportedExtensions.append(ext);
-        }
-    }
-
-    if(!validatedExtensions.isEmpty()) 
-    {
-        m_vulkanWindow->setDeviceExtensions(validatedExtensions);
-        // TODO: update m_vulkanWindow to support setting device features based on enabled extensions
-        infoLogMessage.append(tr("Enabled device extensions: %1").arg(validatedExtensions.join(", ")));
-    }
-
-    if(!unsupportedExtensions.isEmpty()) 
-    {
-        errorLogMessage.append(tr("Required device extensions not supported: %1").arg(unsupportedExtensions.join(", ")));
-    }
-}
-
-//----------------------------------------------------------------------------------
-void AppMainWindow::appendLogMessage(const QString& message, LogLevel level)
-{
-    if (!m_logWidget) {
-        return;
-    }
-
-    m_logWidget->appendLogMessage(message, level);
-}
-
-//----------------------------------------------------------------------------------
 void AppMainWindow::createCentralWidget()
 {
-    // Vulkan rendering area
     m_centralWidget = new QWidget(this);
     m_mainLayout = new QVBoxLayout(m_centralWidget);
     m_mainLayout->setContentsMargins(0, 0, 0, 0);
     m_mainLayout->setSpacing(0);
 
-    auto* vulkanContainer = QWidget::createWindowContainer(m_vulkanWindow, m_centralWidget);
-    vulkanContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    m_mainLayout->addWidget(vulkanContainer, 1);
+    m_frameWidget = new AnariFrameWidget(m_centralWidget);
+    m_mainLayout->addWidget(m_frameWidget, 1);
 
-    // Log panel
-    this->m_logWidget = new CollapsibleLogWidget("Log", 200, m_centralWidget);
+    m_logWidget = new CollapsibleLogWidget(tr("Log"), kDefaultLogHeight, m_centralWidget);
     m_mainLayout->addWidget(m_logWidget, 0);
 
-    this->setCentralWidget(m_centralWidget);
+    setCentralWidget(m_centralWidget);
 }
 
-//----------------------------------------------------------------------------------
-void AppMainWindow::createActions() 
+void AppMainWindow::createRenderer()
 {
-    // Exit the application
-    m_closeAction = new QAction(QIcon(":/images/power.png"), tr("&Exit"), this);
+    m_renderer = new AnariRenderer(this);
+
+    connect(m_renderer, &AnariRenderer::frameReady,
+            m_frameWidget, &AnariFrameWidget::updateFrame);
+    connect(m_renderer, &AnariRenderer::statusMessage,
+            this, &AppMainWindow::onRendererStatusMessage);
+    connect(m_renderer, &AnariRenderer::backendLoaded,
+            this, &AppMainWindow::onBackendLoaded);
+    connect(m_frameWidget, &AnariFrameWidget::resized,
+            m_renderer, &AnariRenderer::resize);
+}
+
+void AppMainWindow::startBackend()
+{
+    m_renderer->resize(m_frameWidget->size());
+    m_renderer->loadBackend(m_anariLibrary, m_anariDeviceSubtype);
+}
+
+void AppMainWindow::onBackendLoaded(bool ok, const QString& libraryName, const QString& deviceSubtype)
+{
+    if (!ok) {
+        appendErrorLogMessage(tr("Failed to load ANARI backend \"%1\".").arg(libraryName));
+        return;
+    }
+    m_anariLibrary = libraryName;
+    m_anariDeviceSubtype = deviceSubtype;
+
+    m_renderer->setRendererSubtype(m_anariRendererSubtype);
+    applyParameters(m_rendererParameters);
+
+    const QString modelPath = QDir(QCoreApplication::applicationDirPath())
+                                  .filePath(QStringLiteral("models/viking_room.obj"));
+    m_renderer->setSceneFromObj(modelPath);
+    m_renderer->start();
+}
+
+void AppMainWindow::applyParameters(const QVector<AnariBackendDialog::ParamValue>& parameters)
+{
+    for (const auto& p : parameters) {
+        m_renderer->setRendererParameter(p.name, p.type, p.value);
+    }
+}
+
+void AppMainWindow::onRendererStatusMessage(int level, const QString& message)
+{
+    appendLogMessage(message, static_cast<LogLevel>(level));
+}
+
+void AppMainWindow::appendLogMessage(const QString& message, LogLevel level)
+{
+    if (!m_logWidget || message.isEmpty()) {
+        return;
+    }
+    m_logWidget->appendLogMessage(message, level);
+}
+
+void AppMainWindow::createActions()
+{
+    m_closeAction = new QAction(QIcon(QStringLiteral(":/images/power.png")), tr("&Exit"), this);
     connect(m_closeAction, &QAction::triggered, qApp, &QApplication::quit);
 
     m_aboutAction = new QAction(tr("&About"), this);
@@ -225,282 +192,105 @@ void AppMainWindow::createActions()
     m_aboutQtAction = new QAction(tr("About &Qt"), this);
     connect(m_aboutQtAction, &QAction::triggered, qApp, &QApplication::aboutQt);
 
-    m_vulkanPropertiesAction = new QAction(tr("Vulkan &Properties"), this);
-    connect(m_vulkanPropertiesAction, &QAction::triggered, this, &AppMainWindow::showVulkanPropertiesDialog);
-    
-    // Edit menu actions
     m_preferencesAction = new QAction(tr("&Preferences..."), this);
-    // m_preferencesAction = new QAction(QIcon(":/images/preferences.png"), tr("&Preferences..."), this);
     connect(m_preferencesAction, &QAction::triggered, this, &AppMainWindow::showPreferencesDialog);
-// ":/qdarkstyle/dark/darkstyle.qss"
-    const bool isLightTheme = !m_darkMode;
-    // const QString iconPrefix = isLightTheme
-    //     ? QStringLiteral(":/qss_icons/light")
-    //     : QStringLiteral(":/qss_icons/dark");
-    const QString iconPrefix = QStringLiteral(":/qdarkstyle/dark");
 
-    m_renderingOptionsAction = new QAction(
-        QIcon(iconPrefix + QStringLiteral("rc/toolbar_move_horizontal.png")),
-        tr("&Rendering..."), this);
+    m_renderingOptionsAction = new QAction(tr("&Rendering..."), this);
     connect(m_renderingOptionsAction, &QAction::triggered, this, &AppMainWindow::showRenderingOptionsDialog);
 }
 
-//----------------------------------------------------------------------------------
-void AppMainWindow::createFileMenu() 
+void AppMainWindow::createFileMenu()
 {
-    m_fileMenu = this->menuBar()->addMenu(tr("&File"));
+    m_fileMenu = menuBar()->addMenu(tr("&File"));
     m_fileMenu->addSeparator();
     m_fileMenu->addAction(m_closeAction);
 }
 
-//----------------------------------------------------------------------------------
-void AppMainWindow::createHelpMenu() 
+void AppMainWindow::createHelpMenu()
 {
-    m_helpMenu = this->menuBar()->addMenu(tr("&Help"));
+    m_helpMenu = menuBar()->addMenu(tr("&Help"));
     m_helpMenu->addAction(m_aboutAction);
     m_helpMenu->addAction(m_aboutQtAction);
-    m_helpMenu->addAction(m_vulkanPropertiesAction);
 }
 
-//----------------------------------------------------------------------------------
-void AppMainWindow::createEditMenu() 
+void AppMainWindow::createEditMenu()
 {
-    m_editMenu = this->menuBar()->addMenu(tr("&Edit"));
+    m_editMenu = menuBar()->addMenu(tr("&Edit"));
     m_editMenu->addAction(m_preferencesAction);
 }
 
-//----------------------------------------------------------------------------------
 void AppMainWindow::createOptionsMenu()
 {
-    m_optionsMenu = this->menuBar()->addMenu(tr("&Options"));
+    m_optionsMenu = menuBar()->addMenu(tr("&Options"));
     m_optionsMenu->addAction(m_renderingOptionsAction);
 }
 
-//----------------------------------------------------------------------------------
-void AppMainWindow::showRenderingOptionsDialog()
+void AppMainWindow::showAboutDialog()
 {
-    if (!m_vulkanWindow)
-    {
-        QMessageBox::warning(this, tr("Rendering Options"), tr("Vulkan window is not available."));
-        return;
-    }
-
-    if (!m_renderingOptionsDialog)
-    {
-        m_renderingOptionsDialog = new QDialog(this);
-        m_renderingOptionsDialog->setWindowTitle(tr("Rendering Options"));
-        m_renderingOptionsDialog->setModal(true);
-
-        auto* mainLayout = new QVBoxLayout(m_renderingOptionsDialog);
-        auto* formLayout = new QFormLayout();
-
-        auto* sampleCountComboBox = new QComboBox(m_renderingOptionsDialog);
-        sampleCountComboBox->setMinimumWidth(160);
-
-        QList<int> supportedSampleCounts = m_vulkanWindow->supportedSampleCounts();
-        std::sort(supportedSampleCounts.begin(), supportedSampleCounts.end(), std::greater<int>());
-        const int currentSampleCount = static_cast<int>(m_vulkanWindow->sampleCountFlagBits());
-
-        for (const int count : supportedSampleCounts)
-        {
-            sampleCountComboBox->addItem(tr("%1x MSAA").arg(count), count);
-            if (count == currentSampleCount)
-            {
-                sampleCountComboBox->setCurrentIndex(sampleCountComboBox->count() - 1);
-            }
-        }
-
-        QLabel* msaaLabel = new QLabel(tr("MSAA Sample Count:"), m_renderingOptionsDialog);
-        msaaLabel->setToolTip(tr("Multisampling Anti-Aliasing. Changes will take effect after restarting the application."));
-        formLayout->addRow(msaaLabel, sampleCountComboBox);
-        mainLayout->addLayout(formLayout);
-
-        auto* buttonBox = new QDialogButtonBox(
-            QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
-            Qt::Horizontal,
-            m_renderingOptionsDialog);
-        connect(buttonBox, &QDialogButtonBox::accepted, m_renderingOptionsDialog, &QDialog::accept);
-        connect(buttonBox, &QDialogButtonBox::rejected, m_renderingOptionsDialog, &QDialog::reject);
-        mainLayout->addWidget(buttonBox);
-
-        connect(m_renderingOptionsDialog, &QDialog::accepted, this, [this, sampleCountComboBox]() {
-            if (!m_vulkanWindow || !sampleCountComboBox)
-            {
-                return;
-            }
-            const int selectedCount = sampleCountComboBox->currentData().toInt();
-            const int activeCount = static_cast<int>(m_vulkanWindow->sampleCountFlagBits());
-
-            if (selectedCount != activeCount)
-            {
-                m_sampleCount = selectedCount;
-
-                if (m_vulkanWindow->isValid())
-                {
-                    this->appendWarningLogMessage(
-                        tr("Multisampling Anti-Aliasing change to %1x MSAA. Restart the app to apply it.")
-                            .arg(selectedCount));
-                }
-                else
-                {
-                    m_vulkanWindow->setSampleCount(selectedCount);
-                    this->appendInfoLogMessage(tr("Rendering sample count set to %1x MSAA").arg(selectedCount));
-                }
-            }
-        });
-    }
-
-    m_renderingOptionsDialog->show();
-}
-
-//----------------------------------------------------------------------------------
-void AppMainWindow::showAboutDialog() 
-{
-    QMessageBox::about(this, 
-                       tr("About Vulkan Sandbox"),
-                       tr("<h2>Vulkan Sandbox</h2>"
-                          "A Vulkan application using Qt and C++20.<br>"
+    QMessageBox::about(this,
+                       tr("About Vitrine"),
+                       tr("<h2>Vitrine</h2>"
+                          "Qt6 application rendering through an ANARI device.<br>"
                           "<p>Copyright &copy; 2026 Dr. Kevin S. Griffin kevin.s.griffin@gmail.com"));
 }
 
-//----------------------------------------------------------------------------------
-void AppMainWindow::showVulkanPropertiesDialog() 
+void AppMainWindow::showRenderingOptionsDialog()
 {
-    if(m_vulkanPropertiesDialog != nullptr)
-    {
-        m_vulkanPropertiesDialog->show();
-    }
-    else 
-    {
-        if (!m_vulkanWindow) {
-            QMessageBox::warning(this, tr("Vulkan Properties"), tr("Vulkan window is not available."));
-            return;
-        }
-
-        auto deviceProperties = m_vulkanWindow->physicalDeviceProperties();
-
-        QStringList vulkanProperties;
-        vulkanProperties << QString(tr("<b>Vulkan API Version:</b> %1")).arg(deviceProperties ? QString("%1.%2.%3")
-            .arg(VK_VERSION_MAJOR(deviceProperties->apiVersion))
-            .arg(VK_VERSION_MINOR(deviceProperties->apiVersion))
-            .arg(VK_VERSION_PATCH(deviceProperties->apiVersion)) : "N/A");
-
-        auto extensions = m_vulkanWindow->supportedDeviceExtensions();
-        vulkanProperties << QString(tr("<br><b>Supported Device Extensions:</b>"));
-        vulkanProperties << QString("<ul>");
-        for (const auto& ext : extensions) {
-            vulkanProperties << QString("<li>%1</li> ").arg(QString::fromUtf8(ext.name));
-        }
-        vulkanProperties << QString("</ul>");
-
-        // Create dialog box
-        m_vulkanPropertiesDialog = new QMessageBox(this);
-        m_vulkanPropertiesDialog->setWindowTitle(tr("Vulkan Properties"));
-        m_vulkanPropertiesDialog->setIcon(QMessageBox::Information);
-        m_vulkanPropertiesDialog->setStandardButtons(QMessageBox::Ok);
-
-        // create scrollabe view for read-only text
-        auto* viewer = new QTextEdit(m_vulkanPropertiesDialog);
-        viewer->setReadOnly(true);
-        viewer->setHtml(vulkanProperties.join("\n"));
-        viewer->setMinimumSize(400, 400);
-        viewer->setLineWrapMode(QTextEdit::NoWrap);
-
-        auto* grid = qobject_cast<QGridLayout*>(m_vulkanPropertiesDialog->layout());
-        if (grid) {
-            const int row = 0;
-            const int col = 0;
-            const int rowSpan = 1;
-            const int colSpan = grid->columnCount() > 0 ? grid->columnCount() : 2;
-            grid->addWidget(viewer, row, col, rowSpan, colSpan);
-        }
-
-        m_vulkanPropertiesDialog->show();
-    }
+    AnariBackendDialog dialog(m_anariLibrary,
+                              m_anariDeviceSubtype,
+                              m_anariRendererSubtype,
+                              m_rendererParameters,
+                              this);
+    connect(&dialog, &AnariBackendDialog::configurationChanged,
+            this, &AppMainWindow::onBackendDialogConfigurationChanged);
+    dialog.exec();
 }
 
-//----------------------------------------------------------------------------------
+void AppMainWindow::onBackendDialogConfigurationChanged(const QString& library,
+                                                        const QString& deviceSubtype,
+                                                        const QString& rendererSubtype,
+                                                        const QVector<AnariBackendDialog::ParamValue>& parameters)
+{
+    const bool libraryChanged = library != m_anariLibrary || deviceSubtype != m_anariDeviceSubtype;
+    const bool rendererChanged = rendererSubtype != m_anariRendererSubtype;
+
+    m_anariLibrary = library;
+    m_anariDeviceSubtype = deviceSubtype;
+    m_anariRendererSubtype = rendererSubtype;
+    m_rendererParameters = parameters;
+
+    if (libraryChanged) {
+        // Reload the backend; onBackendLoaded re-applies renderer subtype +
+        // parameters + scene once it's ready.
+        m_renderer->stop();
+        m_renderer->loadBackend(m_anariLibrary, m_anariDeviceSubtype);
+    } else {
+        if (rendererChanged) {
+            m_renderer->setRendererSubtype(m_anariRendererSubtype);
+        }
+        applyParameters(m_rendererParameters);
+    }
+    saveSettings();
+}
+
 void AppMainWindow::showPreferencesDialog()
 {
-    if (!m_vulkanWindow) {
-        QMessageBox::warning(this, tr("Preferences"), tr("Vulkan window is not available."));
-        return;
-    }
-
-    if (!m_preferencesDialog) 
-    {
+    if (!m_preferencesDialog) {
         m_preferencesDialog = new QDialog(this);
         m_preferencesDialog->setWindowTitle(tr("Preferences"));
         m_preferencesDialog->setModal(true);
 
         auto* mainLayout = new QVBoxLayout(m_preferencesDialog);
-        auto* formLayout = new QFormLayout();
+        mainLayout->addWidget(new QLabel(
+            tr("Preferences are configured via the Options menu for now."),
+            m_preferencesDialog));
 
-        auto* gpuComboBox = new QComboBox(m_preferencesDialog);
-        gpuComboBox->setMinimumWidth(320);
-
-        auto availableDevices = m_vulkanWindow->availablePhysicalDevices();
-        for(int i=0; i < availableDevices.size(); ++i) {
-            const auto& device = availableDevices[i];
-            const QString name = QString::fromUtf8(device.deviceName);
-            gpuComboBox->addItem(name, i);
-        }
-        // gpuComboBox->setCurrentIndex(m_selectedGpuIndex);
-        formLayout->addRow(new QLabel(tr("Preferred GPU:"), m_preferencesDialog), gpuComboBox);
-
-        mainLayout->addLayout(formLayout);
-
-        auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
-                                               Qt::Horizontal,
-                                               m_preferencesDialog);
-        connect(buttonBox, &QDialogButtonBox::accepted, m_preferencesDialog, &QDialog::accept);
-        connect(buttonBox, &QDialogButtonBox::rejected, m_preferencesDialog, &QDialog::reject);
-        mainLayout->addWidget(buttonBox);
-
-        connect(m_preferencesDialog, &QDialog::accepted, this, [this, gpuComboBox]() {
-            if (!gpuComboBox) {
-                return;
-            }
-
-            // m_selectedGpuIndex = gpuComboBox->currentIndex();
-            // m_vulkanWindow->setPhysicalDeviceIndex(m_selectedGpuIndex);
-            // this->logSelectedGpuInfo();
-        });
+        auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close,
+                                             Qt::Horizontal, m_preferencesDialog);
+        connect(buttons, &QDialogButtonBox::rejected, m_preferencesDialog, &QDialog::reject);
+        mainLayout->addWidget(buttons);
     }
-
     m_preferencesDialog->show();
 }
 
-//----------------------------------------------------------------------------------
-void AppMainWindow::logSelectedGpuInfo() 
-{
-    if(!m_vulkanWindow) 
-    {
-        appendErrorLogMessage("Vulkan window is not available.");
-        return;
-    }
-
-    const auto& device = m_vulkanWindow->physicalDeviceProperties();
-    
-    if(device == nullptr) 
-    {
-        appendErrorLogMessage("Failed to retrieve physical device properties.");
-        return;
-    }
-
-    appendInfoLogMessage("===========================");
-    appendInfoLogMessage(QString("Selected GPU Information: %1").arg(m_selectedGpuIndex));
-    appendInfoLogMessage("===========================");
-    appendInfoLogMessage(QString("%1").arg(device->deviceName));
-    appendInfoLogMessage(QString("Vulkan API Version: %1.%2.%3")
-            .arg(VK_VERSION_MAJOR(device->apiVersion))
-            .arg(VK_VERSION_MINOR(device->apiVersion))
-            .arg(VK_VERSION_PATCH(device->apiVersion)));
-    appendInfoLogMessage(QString("Driver Version: %1.%2.%3")
-            .arg(VK_VERSION_MAJOR(device->driverVersion))
-            .arg(VK_VERSION_MINOR(device->driverVersion))
-            .arg(VK_VERSION_PATCH(device->driverVersion)));
-    appendInfoLogMessage(QString("Vendor ID: %1").arg(device->vendorID));
-    appendInfoLogMessage(QString("Device ID: %1\n").arg(device->deviceID));
-}
-} // namespace myvulkan
+} // namespace vitrine

@@ -6,11 +6,11 @@ if(DEFINED $ENV{Qt6_DIR})
     mark_as_advanced(Qt6_DIR)
 endif()
 
-set(Qt_MODULES 
+set(Qt_MODULES
     Core
     Gui
     Widgets
+    Test
 )
 
-# Core modules typically needed for a 3D Vulkan application
 find_package(Qt6 CONFIG REQUIRED COMPONENTS ${Qt_MODULES})

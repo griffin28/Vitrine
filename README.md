@@ -1,11 +1,11 @@
-# Vulkan Sandbox
+# Vitrine
 <img width="1050" height="959" alt="Vulkan Screenshot" src="https://github.com/user-attachments/assets/74f41c63-6b02-467f-909b-e57aae9b50e2" />
 
-Vulkan + Qt6 application built with CMake.
+Qt6 application that renders through an [ANARI](https://www.khronos.org/anari/) device. All Vulkan work happens inside the ANARI backend — typically [Phenocryst](https://github.com/griffin28/Phenocryst), an out-of-tree Vulkan-backed ANARI rendering device. The Qt side displays the ANARI framebuffer and exposes a runtime UI for selecting the backend library and editing its renderer parameters via ANARI introspection.
 
 ## Project layout
 
-- `src/` main application, renderer, UI, shaders, and resources
+- `src/` main application, renderer, UI, and resources
 - `tests/` unit tests (GoogleTest)
 - `CMake/` custom CMake find modules and project utilities
 
@@ -13,9 +13,12 @@ Vulkan + Qt6 application built with CMake.
 
 - CMake 3.28+
 - C++ compiler with C++20 support
-- Qt6 (Core, Gui, Widgets)
-- Vulkan SDK (or Vulkan development packages)
-  - `glslangValidator` must be available (used to compile shaders)
+- Qt6 (Core, Gui, Widgets, Test)
+- ANARI SDK 0.16+
+- At least one installed ANARI backend library, e.g.:
+  - [Phenocryst](https://github.com/griffin28/Phenocryst) (Vulkan, default)
+  - `helide` (CPU/embree, ships with the ANARI SDK)
+  - `visrtx` (NVIDIA OptiX, ships with the ANARI SDK)
 
 Notes:
 
@@ -24,12 +27,13 @@ Notes:
 
 ## Build (Linux)
 
-From the repository root:
+From the repository root, point `CMAKE_PREFIX_PATH` (or `anari_DIR`) at your ANARI SDK install:
 
 1. Configure
 
 	```bash
-	cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+	cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+	  -DCMAKE_PREFIX_PATH=/path/to/anari/install
 	```
 
 2. Build
@@ -38,17 +42,27 @@ From the repository root:
 	cmake --build build -j
 	```
 
-The main executable target is `MyProject`.
+The main executable target is `Vitrine`.
 
 ## Run
 
-After building, run:
+After building, set `ANARI_LIBRARY_PATH` so the ANARI loader can find your backend's shared library, then run:
 
 ```bash
-./build/bin/MyProject
+ANARI_LIBRARY_PATH=/path/to/backend/lib ./build/bin/Vitrine [--dark|--light] [--anari-library <name>]
 ```
 
-Shader binaries are generated during the build and copied next to the executable under a `shaders/` folder.
+Examples:
+
+```bash
+# Phenocryst (default)
+ANARI_LIBRARY_PATH=/path/to/Phenocryst/build ./build/bin/Vitrine
+
+# Helide
+./build/bin/Vitrine --anari-library helide
+```
+
+Once running, **Options → Rendering...** opens a dialog that enumerates the available backend libraries, device subtypes, and renderer subtypes, and builds an editor panel for whatever parameters the chosen renderer advertises (e.g. `background`, `ambientRadiance`). The selection is persisted via `QSettings` under `KSG-Technology-Consulting / Vitrine`.
 
 ## Build and run tests (optional)
 
@@ -57,12 +71,8 @@ Enable tests during configure:
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_APP_TESTS=ON
 cmake --build build -j
-ctest --test-dir build --output-on-failure
+ANARI_LIBRARY_PATH=/path/to/Phenocryst/build \
+  ctest --test-dir build --output-on-failure
 ```
 
-## Optional: enable C++20 Vulkan module target
-
-```bash
-cmake -S . -B build -DENABLE_CPP20_MODULE=ON
-cmake --build build -j
-```
+The test suite mirrors Phenocryst's smoke tests (`LoadsPhenocrystLibrary`, `ClearFrameRoundTripsBackgroundColor`) and additionally exercises the application's `AnariRenderer` end-to-end (`EmitsFrameReadyOnMainThread`).

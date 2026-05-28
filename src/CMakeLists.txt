@@ -5,17 +5,14 @@ set (SRCS
     resources/style/qdarkstyle/light/lightstyle.qrc
 )
 
-# add_subdirectory(<sourcedir> [<binarydir>])
 add_subdirectory(renderer)
 add_subdirectory(ui)
-add_subdirectory(shaders)
 add_subdirectory(core)
 add_subdirectory(textures)
 add_subdirectory(models)
 
 add_executable(${CMAKE_PROJECT_NAME} ${SRCS})
 
-add_dependencies(${CMAKE_PROJECT_NAME} slang_shaders)
 add_dependencies(${CMAKE_PROJECT_NAME} texture_cpy)
 add_dependencies(${CMAKE_PROJECT_NAME} model_cpy)
 
@@ -24,14 +21,13 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
         Qt6::Core
         Qt6::Gui
         Qt6::Widgets
-        Vulkan::cppm
+        anari::anari
         renderer
         ui
         core
         compiler_props
 )
 
-# Generate MD5 hash of the executable
 add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
                    COMMAND md5sum
                    ARGS -b "$<TARGET_FILE:${CMAKE_PROJECT_NAME}>" > "${CMAKE_PROJECT_NAME}.md5")
