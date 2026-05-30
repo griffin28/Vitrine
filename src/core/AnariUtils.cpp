@@ -88,7 +88,9 @@ QStringList enumerateBackendLibraries()
                 continue;
             }
             name.remove(0, prefix.size());
-            if (!name.isEmpty() && !seen.contains(name)) {
+            if (!name.isEmpty() && 
+                !seen.contains(name) && 
+                !(name.startsWith("sink", Qt::CaseSensitive) || name.startsWith("debug", Qt::CaseSensitive))) {
                 seen.insert(name);
                 result << name;
             }

@@ -9,12 +9,11 @@ add_subdirectory(renderer)
 add_subdirectory(ui)
 add_subdirectory(core)
 add_subdirectory(textures)
-add_subdirectory(models)
+add_subdirectory(loader)
 
 add_executable(${CMAKE_PROJECT_NAME} ${SRCS})
 
 add_dependencies(${CMAKE_PROJECT_NAME} texture_cpy)
-add_dependencies(${CMAKE_PROJECT_NAME} model_cpy)
 
 target_link_libraries(${CMAKE_PROJECT_NAME}
     PRIVATE
@@ -25,6 +24,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
         renderer
         ui
         core
+        loader
         compiler_props
 )
 

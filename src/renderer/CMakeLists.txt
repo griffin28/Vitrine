@@ -14,11 +14,11 @@ target_include_directories(renderer
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../core>
     PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../loader
         ${Qt6Core_INCLUDE_DIRS}
         ${Qt6Gui_INCLUDE_DIRS}
         ${Qt6Widgets_INCLUDE_DIRS}
         ${stb_INCLUDE_DIRS}
-        ${tinyobjloader_INCLUDE_DIRS}
 )
 
 target_link_libraries(renderer

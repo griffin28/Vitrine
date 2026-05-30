@@ -5,7 +5,7 @@ Qt6 application that renders through an [ANARI](https://www.khronos.org/anari/) 
 
 ## Project layout
 
-- `src/` main application, renderer, UI, and resources
+- `src/` main application, renderer, scene-file loaders, UI, and resources
 - `tests/` unit tests (GoogleTest)
 - `CMake/` custom CMake find modules and project utilities
 
@@ -63,6 +63,10 @@ LD_LIBRARY_PATH=/path/to/Phenocryst/build ./build/bin/Vitrine
 ```
 
 Once running, **Options → Rendering...** opens a dialog that enumerates the available backend libraries, device subtypes, and renderer subtypes, and builds an editor panel for whatever parameters the chosen renderer advertises (e.g. `background`, `ambientRadiance`). The selection is persisted via `QSettings` under `KSG-Technology-Consulting / Vitrine`.
+
+## Loading models
+
+Use **File → Open File...** to load a model at runtime. A `DataLoaderFactory` selects a loader based on the file suffix (the dialog's filters come from the same factory); unsupported types are logged and ignored. Today a single Wavefront OBJ loader is implemented: each OBJ shape becomes its own ANARI triangle-geometry surface with a `matte` material. As a temporary stand-in for real `.mtl` material parsing, every loaded surface is textured with the bundled Viking Room image via an ANARI `image2D` sampler.
 
 ## Build and run tests (optional)
 

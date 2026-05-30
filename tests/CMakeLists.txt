@@ -27,6 +27,7 @@ target_link_libraries(unit_tests
         Qt6::Test
         anari::anari
         renderer
+        loader
         core
         gtest_main)
 

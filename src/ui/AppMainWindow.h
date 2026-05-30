@@ -51,6 +51,7 @@ public:
     static constexpr const char* KANARIPARAMS = "anari/backend/parameters";
 
 private slots:
+    void openFile();
     void showAboutDialog();
     void showPreferencesDialog();
     void showRenderingOptionsDialog();
@@ -101,6 +102,7 @@ private:
     QMenu* m_editMenu = nullptr;
     QMenu* m_optionsMenu = nullptr;
 
+    QAction* m_openFileAction = nullptr;
     QAction* m_closeAction = nullptr;
     QAction* m_aboutAction = nullptr;
     QAction* m_aboutQtAction = nullptr;

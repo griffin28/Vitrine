@@ -31,11 +31,15 @@ ctest --test-dir build --output-on-failure
 ./build/tests/unit_tests --gtest_filter=<TestSuite.TestName>
 ```
 
-`textures/` and `models/` are copied next to the executable at build time via
-`texture_cpy` and `model_cpy` targets — the renderer loads them by path
-relative to `QCoreApplication::applicationDirPath()`, so running the binary
-from elsewhere will fail to find assets. Shader compilation has been removed:
-Phenocryst owns its own shaders, and the application no longer ships GLSL.
+`textures/` is copied next to the executable at build time via the
+`texture_cpy` target — assets are loaded by path relative to
+`QCoreApplication::applicationDirPath()`, so running the binary from elsewhere
+will fail to find them. Models are no longer bundled: the user loads an OBJ
+at runtime via **File → Open File...**, which calls
+`AnariRenderer::loadSceneFromFile`. That method delegates to a `DataLoader`
+chosen by `DataLoaderFactory` based on the file suffix (see `src/loader/`).
+Shader compilation has been removed: Phenocryst owns its own shaders, and the
+application no longer ships GLSL.
 
 ## Architecture
 
@@ -57,16 +61,38 @@ Module layout (each is an OBJECT library linked into the `Vitrine` executable):
   used by the backend dialog.
 - **`src/renderer/AnariRenderer.{h,cpp}`** — `QObject` that runs on the
   **GUI thread** (see "Threading" below for the why). Owns `ANARILibrary` /
-  `ANARIDevice` / `ANARIRenderer` / `ANARIFrame` / `ANARICamera` /
-  `ANARIWorld`, plus the triangle geometry loaded from
-  `models/viking_room.obj`. Render loop is a two-state pump driven by a
-  `QTimer` (~16 ms): one tick kicks `anariRenderFrame` and sets
-  `m_frameInFlight`; subsequent ticks call `anariFrameReady(ANARI_NO_WAIT)`
-  and only `anariMapFrame` + memcpy into a `QImage(Format_RGBA8888)` +
-  `anariUnmapFrame` + emit `frameReady(QImage)` once the backend reports
-  ready. The actual rendering still happens in parallel on backend-owned
-  threads (embree workers, Vulkan queues, CUDA streams); the GUI thread
-  only spends time on the map+copy.
+  `ANARIDevice` and an `AnariScene` struct (defined in `AnariRenderer.h`) that
+  bundles the `ANARIFrame` / `ANARIWorld` / `ANARIRenderer` / `ANARICamera`
+  plus the scene's `ANARISurface` / `ANARIVolume` / `ANARILight` handles and
+  knows how to release them (`releaseContent` for just the geometry-level
+  content on reload, `releaseSceneObjects` for full teardown).
+  `loadSceneFromFile` (formerly `setSceneFromObj`) asks `DataLoaderFactory`
+  for a loader by suffix, drains any in-flight frame, releases the prior
+  scene content, then delegates the parse to the loader — whose
+  `statusMessage` signal is chained straight into the renderer's. Render loop
+  is a two-state pump driven by a `QTimer` (~16 ms): one tick kicks
+  `anariRenderFrame` and sets `m_frameInFlight`; subsequent ticks call
+  `anariFrameReady(ANARI_NO_WAIT)` and only `anariMapFrame` + memcpy into a
+  `QImage(Format_RGBA8888)` + `anariUnmapFrame` + emit `frameReady(QImage)`
+  once the backend reports ready. The actual rendering still happens in
+  parallel on backend-owned threads (embree workers, Vulkan queues, CUDA
+  streams); the GUI thread only spends time on the map+copy.
+- **`src/loader/`** — Pluggable scene-file loaders, each an OBJECT library
+  linked into the executable. `DataLoader` is an abstract `QObject` base
+  exposing `loadSceneFromFile(ANARIDevice, AnariScene&, path)` and a
+  `statusMessage(int, QString)` signal (mirrors `AnariRenderer::statusMessage`
+  so it can be chained signal-to-signal into the log). `ObjDataLoader` parses
+  a Wavefront OBJ with tinyobjloader: each OBJ **shape** becomes its own ANARI
+  triangle geometry (`vertex.position` / `.color`, plus `.normal` and
+  `.attribute0` texcoords when present) + `matte` material + `ANARISurface`,
+  and all surfaces are attached to the world's `surface` array. It also loads
+  the bundled Viking Room PNG with stb_image and binds it to every material's
+  `color` through a single shared `image2D` `ANARISampler`. `DataLoaderFactory`
+  maps a file suffix to a loader (`createLoader`) and advertises the
+  open-dialog name filters (`fileFilters`, a `QStringList`). Loaders copy mesh
+  and image data into device-managed ANARI arrays (`anariNewArray*` +
+  `anariMapArray`/memcpy/`anariUnmapArray`), so their CPU-side buffers don't
+  need to outlive the geometry.
 - **`src/ui/`** — `AnariFrameWidget` (plain `QWidget` that blits the latest
   `QImage`), `AnariBackendDialog` (modal dialog for picking the ANARI
   backend library / device subtype / renderer subtype and editing
@@ -74,11 +100,13 @@ Module layout (each is an OBJECT library linked into the `Vitrine` executable):
   settings, owns the renderer thread, embeds the frame widget + log
   widget), and `CollapsibleLogWidget` (in-app log panel that receives
   ANARI status messages).
-- **`src/textures/`, `src/models/`** — Single-asset modules (currently the
-  Viking Room demo). Each has a `*_cpy` custom target the executable
-  depends on. The OBJ is fed into ANARI as triangle geometry at startup;
-  the texture is currently unused at runtime (Phenocryst does not implement
-  samplers yet) but is staged for that future.
+- **`src/textures/`** — Single-asset module (currently the Viking Room
+  texture) with a `texture_cpy` custom target the executable depends on.
+  `ObjDataLoader` loads `textures/viking_room.png` at runtime (relative to the
+  executable dir) and binds it to every loaded surface via an `image2D`
+  sampler — a temporary stand-in until the loader parses real materials from
+  the `.mtl`. Models are no longer bundled; OBJ geometry is loaded at runtime
+  via **File → Open File...**.
 - **`src/resources/`** — Qt `.qrc` resources: app icons under `images/`, and
   the embedded qdarkstyle stylesheets (dark + light) compiled in via AUTORCC.
 
@@ -105,6 +133,9 @@ Module layout (each is an OBJECT library linked into the `Vitrine` executable):
   QString)>` and hands its `dispatch` function pointer to `anariLoadLibrary`.
   The renderer thread receives the C callback and re-emits it as a Qt signal
   (`statusMessage`) which the main window routes into `CollapsibleLogWidget`.
+  `DataLoader`s emit their own `statusMessage(int, QString)`; `loadSceneFromFile`
+  connects it to the renderer's identically-shaped signal so loader messages
+  reach the same log path.
 - **Threading**: `AnariRenderer` lives on the **GUI thread** as a child
   of `AppMainWindow`. Some ANARI backends statically embed CPU ray tracers
   (helide ships `embree_for_helide`) whose task schedulers crash when first
@@ -114,9 +145,10 @@ Module layout (each is an OBJECT library linked into the `Vitrine` executable):
   loop responsive: render kicks and completion polls return immediately,
   the only meaningful work the GUI thread does per frame is the
   pixel memcpy.
-- **Asset paths**: same convention as before —
-  `QCoreApplication::applicationDirPath() / "models/viking_room.obj"`. Mirror
-  `texture_cpy` / `model_cpy` for any new assets.
+- **Asset paths**: bundled assets resolve relative to
+  `QCoreApplication::applicationDirPath()` (e.g. `textures/...`). Mirror
+  `texture_cpy` for any new bundled assets. User-supplied models are loaded by
+  absolute path through **File → Open File...** and are not bundled.
 
 ## CMake custom find modules
 

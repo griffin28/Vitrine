@@ -21,6 +21,7 @@ target_include_directories(ui
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/../core
         ${CMAKE_CURRENT_SOURCE_DIR}/../renderer
+        ${CMAKE_CURRENT_SOURCE_DIR}/../loader
         ${Qt6Core_INCLUDE_DIRS}
         ${Qt6Gui_INCLUDE_DIRS}
         ${Qt6Widgets_INCLUDE_DIRS}

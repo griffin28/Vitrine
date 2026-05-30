@@ -20,6 +20,8 @@ find_package(anari 0.16.0 REQUIRED)
 find_package(tinyobjloader REQUIRED)
 find_package(tinygltf REQUIRED)
 find_package(KTX REQUIRED)
+find_package(stb REQUIRED)
+set(STB_INCLUDEDIR ${stb_INCLUDE_DIRS})
 
 option(BUILD_APP_TESTS "Build unit tests" OFF)
 

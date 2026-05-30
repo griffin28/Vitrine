@@ -20,6 +20,72 @@ class QTimer;
 namespace vitrine
 {
 
+struct AnariScene
+{
+    ANARIFrame frame{nullptr};
+
+    ANARIWorld world{nullptr};
+    ANARIRenderer renderer{nullptr};
+    ANARICamera camera{nullptr};
+
+    // std::vector<ANARIInstance> instances;
+    // std::vector<ANARIGroup> groups;
+
+    std::vector<ANARISurface> surfaces;
+    std::vector<ANARIVolume> volumes;
+    std::vector<ANARILight> lights;
+
+    /// @brief Release the geometry-level scene content (surfaces, groups,
+    ///        instances, volumes) while leaving the frame / world / renderer
+    ///        / camera / lights intact. Used when reloading a scene.
+    void releaseContent(ANARIDevice device)
+    {
+        if (!device) {
+            return;
+        }
+        // releaseHandles(device, instances);
+        // releaseHandles(device, groups);
+        releaseHandles(device, surfaces);
+        releaseHandles(device, volumes);
+    }
+
+    /// @brief Release every ANARI handle owned by the scene. Used on full
+    ///        backend teardown.
+    void releaseSceneObjects(ANARIDevice device)
+    {
+        if (!device) {
+            return;
+        }
+        releaseContent(device);
+        releaseHandles(device, lights);
+        releaseHandle(device, frame);
+        releaseHandle(device, world);
+        releaseHandle(device, renderer);
+        releaseHandle(device, camera);
+    }
+
+private:
+    template <typename T>
+    static void releaseHandle(ANARIDevice device, T& handle)
+    {
+        if (handle) {
+            anariRelease(device, handle);
+            handle = nullptr;
+        }
+    }
+
+    template <typename T>
+    static void releaseHandles(ANARIDevice device, std::vector<T>& handles)
+    {
+        for (auto& handle : handles) {
+            if (handle) {
+                anariRelease(device, handle);
+            }
+        }
+        handles.clear();
+    }
+};
+
 /// @brief Owns the ANARI library / device / frame and emits the resulting
 ///        framebuffer as a QImage. Runs on the GUI thread (see the
 ///        Threading section in CLAUDE.md for why); the render loop is a
@@ -59,11 +125,12 @@ public slots:
     /// @brief Set the framebuffer size. Re-allocates the QImage buffer.
     void resize(const QSize& size);
 
-    /// @brief Load an OBJ from disk, dedup vertices, and push the mesh
-    ///        through ANARI as a triangle geometry under a single surface.
-    ///        On backends that don't implement triangle geometry yet the
-    ///        calls return invalid handles and we log+continue.
-    void setSceneFromObj(const QString& path);
+    /// @brief Load a scene file from disk. DataLoaderFactory picks a loader
+    ///        based on the file suffix; the loader populates the scene's
+    ///        surfaces/groups/instances and attaches them to the world. Prior
+    ///        scene content is released first. Unsupported suffixes are logged
+    ///        and ignored.
+    void loadSceneFromFile(const QString& path);
 
     /// @brief Begin or resume the render loop.
     void start();
@@ -88,15 +155,7 @@ private:
 
     ANARILibrary m_library{nullptr};
     ANARIDevice m_device{nullptr};
-    ANARIRenderer m_renderer{nullptr};
-    ANARICamera m_camera{nullptr};
-    ANARIWorld m_world{nullptr};
-    ANARIFrame m_frame{nullptr};
-    ANARIGeometry m_geometry{nullptr};
-    ANARISurface m_surface{nullptr};
-    ANARIMaterial m_material{nullptr};
-    ANARIGroup m_group{nullptr};
-    ANARIInstance m_instance{nullptr};
+    AnariScene m_anariScene;
 
     QString m_libraryName;
     QString m_deviceSubtype;
@@ -106,10 +165,6 @@ private:
     QImage m_frameImage;
     bool m_frameInFlight{false};
     QTimer* m_renderTimer{nullptr};
-
-    // Cached mesh data the ANARI arrays reference.
-    std::vector<std::array<float, 3>> m_positions;
-    std::vector<std::array<uint32_t, 3>> m_indices;
 };
 
 } // namespace vitrine

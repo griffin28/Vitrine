@@ -2,15 +2,15 @@
 
 #include "AnariFrameWidget.h"
 #include "AnariRenderer.h"
+#include "DataLoaderFactory.h"
 #include "AnariUtils.h"
 
 #include <QAction>
 #include <QApplication>
 #include <QColor>
-#include <QCoreApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
-#include <QDir>
+#include <QFileDialog>
 #include <QFormLayout>
 #include <QIcon>
 #include <QLabel>
@@ -155,9 +155,6 @@ void AppMainWindow::onBackendLoaded(bool ok, const QString& libraryName, const Q
     m_renderer->setRendererSubtype(m_anariRendererSubtype);
     applyParameters(m_rendererParameters);
 
-    const QString modelPath = QDir(QCoreApplication::applicationDirPath())
-                                  .filePath(QStringLiteral("models/viking_room.obj"));
-    m_renderer->setSceneFromObj(modelPath);
     m_renderer->start();
 }
 
@@ -183,6 +180,10 @@ void AppMainWindow::appendLogMessage(const QString& message, LogLevel level)
 
 void AppMainWindow::createActions()
 {
+    m_openFileAction = new QAction(tr("&Open File..."), this);
+    m_openFileAction->setShortcut(QKeySequence::Open);
+    connect(m_openFileAction, &QAction::triggered, this, &AppMainWindow::openFile);
+
     m_closeAction = new QAction(QIcon(QStringLiteral(":/images/power.png")), tr("&Exit"), this);
     connect(m_closeAction, &QAction::triggered, qApp, &QApplication::quit);
 
@@ -202,6 +203,7 @@ void AppMainWindow::createActions()
 void AppMainWindow::createFileMenu()
 {
     m_fileMenu = menuBar()->addMenu(tr("&File"));
+    m_fileMenu->addAction(m_openFileAction);
     m_fileMenu->addSeparator();
     m_fileMenu->addAction(m_closeAction);
 }
@@ -223,6 +225,18 @@ void AppMainWindow::createOptionsMenu()
 {
     m_optionsMenu = menuBar()->addMenu(tr("&Options"));
     m_optionsMenu->addAction(m_renderingOptionsAction);
+}
+
+void AppMainWindow::openFile()
+{
+    const QString path = QFileDialog::getOpenFileName(
+        this, tr("Open File"), QString(), DataLoaderFactory::fileFilters().join(QStringLiteral(";;")));
+    if (path.isEmpty()) {
+        return;
+    }
+
+    // DataLoaderFactory selects a loader by suffix and logs unsupported types.
+    m_renderer->loadSceneFromFile(path);
 }
 
 void AppMainWindow::showAboutDialog()
