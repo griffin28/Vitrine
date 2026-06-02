@@ -10,7 +10,8 @@
 
 namespace vitrine
 {
-
+// AnariStatusSink
+// ===============
 AnariStatusSink::AnariStatusSink(Sink sink)
     : m_sink(std::move(sink))
 {
@@ -48,6 +49,62 @@ void AnariStatusSink::dispatch(const void* userPtr,
     }
 
     self->m_sink(level, QString::fromUtf8(message));
+}
+
+// AnariRendererParameter
+// ======================
+AnariRendererParameter::AnariRendererParameter(AnariRendererParameter &&other)
+{
+    m_name = other.m_name;
+    m_type = other.m_type;
+    other.m_type = ANARI_UNKNOWN;
+    m_description = other.m_description;
+    m_acceptedValues = other.m_acceptedValues;
+    m_minimum = other.m_minimum;
+    m_maximum = other.m_maximum;
+    m_defaultValue = other.m_defaultValue;
+}
+
+AnariRendererParameter &
+AnariRendererParameter::operator=(AnariRendererParameter &&other)
+{
+    if (this != &other)
+    {
+        m_name = other.m_name;
+        m_type = other.m_type;
+        other.m_type = ANARI_UNKNOWN;
+        m_description = other.m_description;
+        m_acceptedValues = other.m_acceptedValues;
+        m_minimum = other.m_minimum;
+        m_maximum = other.m_maximum;
+        m_defaultValue = other.m_defaultValue;
+    }
+
+    return *this;
+}
+
+void
+AnariRendererParameter::setDescription(const char *description)
+{
+    if (description)
+    {
+        m_description = QString::fromUtf8(description);
+    }
+    else 
+    {
+        m_description.clear();
+    }
+}
+
+void 
+AnariRendererParameter::setAcceptedValues(const char **v)
+{
+    m_acceptedValues.clear();
+
+    for (int i=0; v && v[i] != nullptr; i++)
+    {
+        m_acceptedValues.push_back(QString::fromUtf8(v[i]));
+    }
 }
 
 namespace AnariUtils
@@ -131,10 +188,10 @@ QStringList enumerateRendererSubtypes(ANARIDevice device)
     return result;
 }
 
-std::vector<RendererParameter> enumerateRendererParameters(
+std::vector<AnariRendererParameter> enumerateRendererParameters(
     ANARIDevice device, const QString& rendererSubtype)
 {
-    std::vector<RendererParameter> result;
+    std::vector<AnariRendererParameter> result;
     if (!device || rendererSubtype.isEmpty()) {
         return result;
     }
@@ -148,10 +205,11 @@ std::vector<RendererParameter> enumerateRendererParameters(
     if (!params) {
         return result;
     }
+
     for (int i = 0; params[i].name != nullptr; ++i) {
-        RendererParameter p;
-        p.name = QString::fromUtf8(params[i].name);
-        p.type = params[i].type;
+        AnariRendererParameter p;
+        p.setName(params[i].name);
+        p.setType(params[i].type);
 
         const auto* desc = static_cast<const char*>(
             anariGetParameterInfo(device,
@@ -161,9 +219,43 @@ std::vector<RendererParameter> enumerateRendererParameters(
                                   params[i].type,
                                   "description",
                                   ANARI_STRING));
-        if (desc) {
-            p.description = QString::fromUtf8(desc);
-        }
+        p.setDescription(desc);
+
+        const auto* min = anariGetParameterInfo(device,
+                                                ANARI_RENDERER,
+                                                subtypeUtf8.constData(),
+                                                params[i].name,
+                                                params[i].type,
+                                                "minimum",
+                                                params[i].type);
+        p.setMinimum(min);
+
+        const auto* max = anariGetParameterInfo(device,
+                                                ANARI_RENDERER,
+                                                subtypeUtf8.constData(),
+                                                params[i].name,
+                                                params[i].type,
+                                                "maximum",
+                                                params[i].type);
+        p.setMaximum(max);
+
+        const auto* dv = anariGetParameterInfo(device,
+                                               ANARI_RENDERER,
+                                               subtypeUtf8.constData(),
+                                               params[i].name,
+                                               params[i].type,
+                                               "default",
+                                               params[i].type);
+        p.setDefaultValue(dv);
+
+        p.setAcceptedValues((const char **)anariGetParameterInfo(device,
+                                                                 ANARI_RENDERER,
+                                                                 subtypeUtf8.constData(),
+                                                                 params[i].name,
+                                                                 params[i].type,
+                                                                 "value",
+                                                                 ANARI_STRING_LIST));
+                                  
         result.push_back(std::move(p));
     }
     return result;

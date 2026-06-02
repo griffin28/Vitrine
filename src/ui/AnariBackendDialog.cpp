@@ -1,7 +1,5 @@
 #include "AnariBackendDialog.h"
 
-#include "AnariUtils.h"
-
 #include <anari/anari.h>
 
 #include <QByteArray>
@@ -10,51 +8,18 @@
 #include <QColorDialog>
 #include <QComboBox>
 #include <QDialogButtonBox>
-#include <QDoubleSpinBox>
 #include <QFormLayout>
-#include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
-#include <QSpinBox>
+
 #include <QVBoxLayout>
 
+#include <array>
 #include <utility>
 
 namespace vitrine
 {
-
-namespace
-{
-
-QColor variantToColor(const QVariant& v)
-{
-    if (v.canConvert<QColor>()) {
-        return v.value<QColor>();
-    }
-    const auto list = v.toList();
-    if (list.size() == 4) {
-        QColor c;
-        c.setRgbF(std::clamp(list[0].toDouble(), 0.0, 1.0),
-                  std::clamp(list[1].toDouble(), 0.0, 1.0),
-                  std::clamp(list[2].toDouble(), 0.0, 1.0),
-                  std::clamp(list[3].toDouble(), 0.0, 1.0));
-        return c;
-    }
-    return QColor(Qt::black);
-}
-
-void setColorButtonSwatch(QPushButton* button, const QColor& color)
-{
-    button->setText(color.name(QColor::HexArgb));
-    QString style = QStringLiteral(
-        "QPushButton { background-color: %1; color: %2; }")
-        .arg(color.name(),
-             color.lightness() > 128 ? QStringLiteral("black") : QStringLiteral("white"));
-    button->setStyleSheet(style);
-}
-
-} // namespace
 
 AnariBackendDialog::AnariBackendDialog(const QString& initialLibrary,
                                        const QString& initialDeviceSubtype,
@@ -250,135 +215,334 @@ void AnariBackendDialog::buildParameterPanel()
     for (const auto& p : params) {
         // Seed from the caller-provided initial values if the names match.
         QVariant initial;
+        QString pname = p.getName();
+        ANARIDataType ptype = p.getType();
+        QString pdescription = p.getDescription();
+
         for (const auto& iv : m_initialParameters) {
-            if (iv.name == p.name && iv.type == static_cast<int>(p.type)) {
+            if (iv.name == pname && iv.type == static_cast<int>(ptype)) {
                 initial = iv.value;
                 break;
             }
         }
-        QWidget* editor = makeEditorForParameter(static_cast<int>(p.type), p.name, initial);
-        if (!editor) {
+        QWidget* widget = makeWidgetForParameter(p, initial);
+        if (!widget) {
             continue;
         }
-        QString label = p.name;
-        if (!p.description.isEmpty()) {
-            label = QStringLiteral("%1\n(%2)").arg(p.name, p.description);
+        
+        if (!pdescription.isEmpty()) 
+        {
+            widget->setToolTip(pdescription);
         }
-        m_parameterForm->addRow(label, editor);
-        m_editors.push_back({p.name, static_cast<int>(p.type), editor});
+        m_parameterForm->addRow(pname, widget);
+        m_editors.push_back({pname, static_cast<int>(ptype), widget});
     }
 }
 
-QWidget* AnariBackendDialog::makeEditorForParameter(int type, const QString& name, const QVariant& current)
+QWidget* AnariBackendDialog::makeWidgetForParameter(const AnariRendererParameter& p, const QVariant& current)
 {
+    const auto type = p.getType();
+    const auto name = p.getName();
+
+    // Ignore ANARI metadata and handle-like types that cannot be edited here.
+    if (type < ANARI_INT8)
+    {
+        return nullptr;
+    }
+
+    if ( (name.contains("background", Qt::CaseInsensitive) ||
+          name.contains("ambientRadiance", Qt::CaseInsensitive) ||
+          name.contains("ambientColor", Qt::CaseInsensitive) ||
+          name.contains("color", Qt::CaseInsensitive)) )
+    {
+        auto* container = new QWidget(this);
+        auto* hbox = new QHBoxLayout(container);
+        hbox->setContentsMargins(0, 0, 0, 0);
+        auto* button = this->createColorButton(container, type, current);
+        hbox->addWidget(button);
+
+        return container;
+    }
+
     switch (type) {
-        case ANARI_FLOAT32: {
-            auto* spin = new QDoubleSpinBox(this);
-            spin->setDecimals(4);
-            spin->setRange(-1e6, 1e6);
-            spin->setSingleStep(0.1);
-            if (current.isValid()) {
-                spin->setValue(current.toDouble());
+        case ANARI_FLOAT32: 
+            return this->getSpinBoxContainer<float>(p, current, 1, this);
+        case ANARI_FLOAT64:
+            return this->getSpinBoxContainer<double>(p, current, 1, this);
+        case ANARI_INT32: 
+            return this->getSpinBoxContainer<int>(p, current, 1, this);
+        case ANARI_BOOL: 
+        {
+            auto* checkBox = new QCheckBox(this);
+
+            if (current.isValid())
+            {
+                checkBox->setChecked(current.toBool());
             }
-            return spin;
-        }
-        case ANARI_INT32: {
-            auto* spin = new QSpinBox(this);
-            spin->setRange(-1'000'000, 1'000'000);
-            if (current.isValid()) {
-                spin->setValue(current.toInt());
+            else if (p.hasDefaultValue())
+            {
+                auto boolPtr = p.getDefaultValue<const int32_t *>();
+                checkBox->setChecked(boolPtr && *boolPtr);
             }
-            return spin;
+            
+            return checkBox;
         }
-        case ANARI_UINT32: {
-            auto* spin = new QSpinBox(this);
-            spin->setRange(0, 1'000'000);
-            if (current.isValid()) {
-                spin->setValue(current.toInt());
-            }
-            return spin;
-        }
-        case ANARI_BOOL: {
-            auto* check = new QCheckBox(this);
-            check->setChecked(current.toBool());
-            return check;
-        }
-        case ANARI_FLOAT32_VEC4: {
-            // Treat any FLOAT32_VEC4 as a colour for now (the only such
-            // parameter Phenocryst exposes is "background").
-            auto* container = new QWidget(this);
-            auto* hbox = new QHBoxLayout(container);
-            hbox->setContentsMargins(0, 0, 0, 0);
-            auto* button = new QPushButton(container);
-            QColor initial = current.isValid() ? variantToColor(current) : QColor(Qt::black);
-            setColorButtonSwatch(button, initial);
-            button->setProperty("color", initial);
-            connect(button, &QPushButton::clicked, this, [button, container]() {
-                QColor c = button->property("color").value<QColor>();
-                QColor picked = QColorDialog::getColor(c, container,
-                                                      tr("Pick parameter color"),
-                                                      QColorDialog::ShowAlphaChannel);
-                if (picked.isValid()) {
-                    button->setProperty("color", picked);
-                    setColorButtonSwatch(button, picked);
+        case ANARI_FLOAT32_VEC2:
+            return this->getSpinBoxContainer<float>(p, current, 2, this);
+        case ANARI_FLOAT32_VEC3:
+            return this->getSpinBoxContainer<float>(p, current, 3, this);
+        case ANARI_FLOAT32_VEC4: 
+            return this->getSpinBoxContainer<float>(p, current, 4, this);
+        case ANARI_FLOAT64_VEC2:
+            return this->getSpinBoxContainer<double>(p, current, 2, this);
+        case ANARI_FLOAT64_VEC3:
+            return this->getSpinBoxContainer<double>(p, current, 3, this);
+        case ANARI_FLOAT64_VEC4: 
+            return this->getSpinBoxContainer<double>(p, current, 4, this);
+        case ANARI_INT32_VEC2:
+            return this->getSpinBoxContainer<int>(p, current, 2, this);
+        case ANARI_INT32_VEC3:
+            return this->getSpinBoxContainer<int>(p, current, 3, this);
+        case ANARI_INT32_VEC4: 
+            return this->getSpinBoxContainer<int>(p, current, 4, this);
+        case ANARI_STRING: 
+        {
+            auto acceptedVals = p.getAcceptedValues();
+
+            if (!acceptedVals.isEmpty()) 
+            {
+                auto* comboBox = new QComboBox(this);
+                for (const QString &val : acceptedVals)
+                {
+                    comboBox->addItem(val);
                 }
-            });
-            hbox->addWidget(button);
-            return container;
+
+                if (current.isValid() && current.canConvert<QString>())
+                {
+                    const int index = comboBox->findText(current.toString());
+                    if (index >=0 )
+                    {
+                        comboBox->setCurrentIndex(index);
+                    }
+                }
+
+                return comboBox;
+            }
+            else 
+            {
+                auto* edit = new QLineEdit(this);
+
+                if (current.isValid() && current.canConvert<QString>())
+                {
+                    edit->setText(current.toString());
+                }
+                return edit;
+            }
         }
-        case ANARI_STRING: {
-            auto* edit = new QLineEdit(this);
-            edit->setText(current.toString());
-            return edit;
-        }
-        default: {
-            auto* label = new QLabel(tr("(unsupported parameter type %1 for \"%2\")")
+        default: 
+        {
+            auto* label = new QLabel(tr("(unsupported type %1 for \"%2\")")
                                          .arg(type).arg(name), this);
             label->setEnabled(false);
             return label;
+            // auto* edit = new QLineEdit(this);
+
+            // if (current.isValid() && current.canConvert<QString>())
+            // {
+            //     edit->setText(current.toString());
+            // }
+            
+            // return edit;
         }
     }
 }
 
-QVariant AnariBackendDialog::readEditor(int type, QWidget* editor) const
+QVariant AnariBackendDialog::readWidget(int type, QWidget* editor) const
 {
+    if (!editor) {
+        return {};
+    }
+
+    if (auto* button = editor->findChild<QPushButton*>(QString(), Qt::FindDirectChildrenOnly)) 
+    {
+        const QVariant color = button->property("color");
+        if (color.isValid()) {
+            return color;
+        }
+    }
+
+    const auto readDoubleSpinBoxes = [editor](int components) -> QVariant {
+        if (auto* spin = qobject_cast<QDoubleSpinBox*>(editor)) {
+            return components == 1 ? QVariant(spin->value()) : QVariant();
+        }
+
+        const auto spins = editor->findChildren<QDoubleSpinBox*>(
+            QString(), Qt::FindDirectChildrenOnly);
+        if (spins.size() != components) {
+            return {};
+        }
+        if (components == 1) {
+            return spins[0]->value();
+        }
+
+        QVariantList values;
+        values.reserve(components);
+        for (auto* spin : spins) {
+            values.push_back(spin->value());
+        }
+
+        return values;
+    };
+
+    const auto readIntSpinBoxes = [editor](int components) -> QVariant 
+    {
+        if (auto* spin = qobject_cast<QSpinBox*>(editor)) {
+            return components == 1 ? QVariant(spin->value()) : QVariant();
+        }
+
+        const auto spins = editor->findChildren<QSpinBox*>(
+            QString(), Qt::FindDirectChildrenOnly);
+        if (spins.size() != components) {
+            return {};
+        }
+        if (components == 1) {
+            return spins[0]->value();
+        }
+
+        QVariantList values;
+        values.reserve(components);
+        for (auto* spin : spins) {
+            values.push_back(spin->value());
+        }
+
+        return values;
+    };
+
     switch (type) {
         case ANARI_FLOAT32:
-            if (auto* s = qobject_cast<QDoubleSpinBox*>(editor)) {
-                return s->value();
-            }
-            break;
+        case ANARI_FLOAT64:
+            return readDoubleSpinBoxes(1);
         case ANARI_INT32:
-        case ANARI_UINT32:
-            if (auto* s = qobject_cast<QSpinBox*>(editor)) {
-                return s->value();
-            }
-            break;
+            return readIntSpinBoxes(1);
         case ANARI_BOOL:
-            if (auto* c = qobject_cast<QCheckBox*>(editor)) {
+            if (auto* c = qobject_cast<QCheckBox*>(editor)) 
+            {
                 return c->isChecked();
             }
             break;
-        case ANARI_FLOAT32_VEC4: {
-            // The editor for VEC4 is a container; the QPushButton inside
-            // holds the chosen QColor in a dynamic property.
-            if (editor) {
-                auto* button = editor->findChild<QPushButton*>();
-                if (button) {
-                    return button->property("color");
-                }
-            }
-            break;
-        }
+        case ANARI_FLOAT32_VEC2:
+        case ANARI_FLOAT64_VEC2:
+            return readDoubleSpinBoxes(2);
+        case ANARI_FLOAT32_VEC3:
+        case ANARI_FLOAT64_VEC3:
+            return readDoubleSpinBoxes(3);
+        case ANARI_FLOAT32_VEC4:
+        case ANARI_FLOAT64_VEC4:
+            return readDoubleSpinBoxes(4);
+        case ANARI_INT32_VEC2:
+            return readIntSpinBoxes(2);
+        case ANARI_INT32_VEC3:
+            return readIntSpinBoxes(3);
+        case ANARI_INT32_VEC4:
+            return readIntSpinBoxes(4);
         case ANARI_STRING:
             if (auto* l = qobject_cast<QLineEdit*>(editor)) {
                 return l->text();
+            }
+            if (auto* c = qobject_cast<QComboBox*>(editor)) {
+                return c->currentText();
             }
             break;
         default:
             break;
     }
     return {};
+}
+
+QPushButton* AnariBackendDialog::createColorButton(QWidget* parent, ANARIDataType type, const QVariant& current)
+{
+    auto* button = new QPushButton(parent);
+    QColor initial = current.isValid() ? AnariBackendDialog::variantToColor(type, current) : QColor(Qt::black);
+    AnariBackendDialog::setColorButtonSwatch(button, initial);
+    button->setProperty("color", initial);
+    connect(button, &QPushButton::clicked, this, [button, parent]() {
+        QColor c = button->property("color").value<QColor>();
+        QColor picked = QColorDialog::getColor(c, parent,
+                                               tr("Pick parameter color"),
+                                               QColorDialog::ShowAlphaChannel);
+        if (picked.isValid()) 
+        {
+            button->setProperty("color", picked);
+            AnariBackendDialog::setColorButtonSwatch(button, picked);
+        }
+    });
+
+    return button;
+}
+
+QColor AnariBackendDialog::variantToColor(ANARIDataType type, const QVariant& v)
+{
+    if (v.canConvert<QColor>()) {
+        return v.value<QColor>();
+    }
+    
+    const auto list = v.toList();
+    switch(type){
+        case ANARI_UFIXED8_VEC3:
+        case ANARI_UFIXED8_VEC4:
+        {
+            QColor c;
+            if (list.size() == 3)
+            {
+                c.setRgb(std::clamp(list[0].toInt(), 0, 255),
+                         std::clamp(list[1].toInt(), 0, 255),
+                         std::clamp(list[2].toInt(), 0, 255));
+                return c;
+            }
+            else if (list.size() == 4)
+            {
+                c.setRgb(std::clamp(list[0].toInt(), 0, 255),
+                         std::clamp(list[1].toInt(), 0, 255),
+                         std::clamp(list[2].toInt(), 0, 255),
+                         std::clamp(list[3].toInt(), 0, 255));
+                return c;
+            }
+        }
+        case ANARI_FLOAT32_VEC3:
+        case ANARI_FLOAT32_VEC4:
+        {
+            QColor c;
+            if (list.size() == 3)
+            {
+                c.setRgbF(std::clamp(list[0].toDouble(), 0.0, 1.0),
+                          std::clamp(list[1].toDouble(), 0.0, 1.0),
+                          std::clamp(list[2].toDouble(), 0.0, 1.0));
+                return c;
+            }
+            else if (list.size() == 4) 
+            {
+                c.setRgbF(std::clamp(list[0].toDouble(), 0.0, 1.0),
+                          std::clamp(list[1].toDouble(), 0.0, 1.0),
+                          std::clamp(list[2].toDouble(), 0.0, 1.0),
+                          std::clamp(list[3].toDouble(), 0.0, 1.0));
+                return c;
+            }
+        }
+        default:
+            return QColor(Qt::black);
+    }
+
+    return QColor(Qt::black);
+}
+
+void AnariBackendDialog::setColorButtonSwatch(QPushButton* button, const QColor& color)
+{
+    button->setText(color.name(QColor::HexArgb));
+    QString style = QStringLiteral(
+        "QPushButton { background-color: %1; color: %2; }")
+        .arg(color.name(),
+             color.lightness() > 128 ? QStringLiteral("black") : QStringLiteral("white"));
+    button->setStyleSheet(style);
 }
 
 void AnariBackendDialog::onAccepted()
@@ -389,7 +553,7 @@ void AnariBackendDialog::onAccepted()
 
     m_selectedParameters.clear();
     for (const auto& entry : m_editors) {
-        QVariant v = readEditor(entry.type, entry.editor);
+        QVariant v = readWidget(entry.type, entry.editor);
         if (v.isValid()) {
             m_selectedParameters.push_back({entry.name, entry.type, v});
         }
