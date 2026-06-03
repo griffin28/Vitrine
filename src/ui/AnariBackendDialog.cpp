@@ -229,12 +229,14 @@ void AnariBackendDialog::buildParameterPanel()
         if (!widget) {
             continue;
         }
+
+        QLabel *label = new QLabel(pname, this);
         
         if (!pdescription.isEmpty()) 
         {
-            widget->setToolTip(pdescription);
+            label->setToolTip(pdescription);
         }
-        m_parameterForm->addRow(pname, widget);
+        m_parameterForm->addRow(label, widget);
         m_editors.push_back({pname, static_cast<int>(ptype), widget});
     }
 }

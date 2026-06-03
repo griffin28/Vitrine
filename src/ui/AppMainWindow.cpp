@@ -2,6 +2,7 @@
 
 #include "AnariFrameWidget.h"
 #include "AnariRenderer.h"
+#include "CameraAxisOverlay.h"
 #include "DataLoaderFactory.h"
 #include "AnariUtils.h"
 
@@ -117,6 +118,12 @@ void AppMainWindow::createCentralWidget()
     m_frameWidget = new AnariFrameWidget(m_centralWidget);
     m_mainLayout->addWidget(m_frameWidget, 1);
 
+    // Axis gizmo floats over the rendered frame (bottom-left corner). It is a
+    // child of the frame widget rather than a layout item so it can overlap
+    // the image; we reposition it whenever the frame widget resizes.
+    m_axisOverlay = new CameraAxisOverlay(m_frameWidget);
+    m_axisOverlay->show();
+
     m_logWidget = new CollapsibleLogWidget(tr("Log"), kDefaultLogHeight, m_centralWidget);
     m_mainLayout->addWidget(m_logWidget, 0);
 
@@ -135,6 +142,28 @@ void AppMainWindow::createRenderer()
             this, &AppMainWindow::onBackendLoaded);
     connect(m_frameWidget, &AnariFrameWidget::resized,
             m_renderer, &AnariRenderer::resize);
+
+    // Camera control: frame-widget mouse gestures drive the renderer's camera,
+    // and the resulting basis feeds the axis overlay.
+    connect(m_frameWidget, &AnariFrameWidget::orbitRequested,
+            m_renderer, &AnariRenderer::orbitCamera);
+    connect(m_frameWidget, &AnariFrameWidget::panRequested,
+            m_renderer, &AnariRenderer::panCamera);
+    connect(m_frameWidget, &AnariFrameWidget::dollyRequested,
+            m_renderer, &AnariRenderer::dollyCamera);
+    connect(m_renderer, &AnariRenderer::cameraChanged,
+            m_axisOverlay, &CameraAxisOverlay::setBasis);
+
+    // Keep the gizmo pinned to the frame widget's bottom-left corner.
+    connect(m_frameWidget, &AnariFrameWidget::resized,
+            this, [this](const QSize& size) {
+                if (m_axisOverlay) {
+                    constexpr int margin = 8;
+                    m_axisOverlay->move(margin,
+                                        size.height() - m_axisOverlay->height() - margin);
+                    m_axisOverlay->raise();
+                }
+            });
 }
 
 void AppMainWindow::startBackend()

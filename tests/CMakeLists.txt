@@ -18,6 +18,7 @@ target_include_directories(unit_tests
         ${Qt6Widgets_INCLUDE_DIRS}
         ${CMAKE_CURRENT_LIST_DIR}/../src/renderer
         ${CMAKE_CURRENT_LIST_DIR}/../src/core
+        ${CMAKE_CURRENT_LIST_DIR}/../src/camera
         ${CMAKE_CURRENT_LIST_DIR}/../src/ui)
 
 target_link_libraries(unit_tests
@@ -29,6 +30,7 @@ target_link_libraries(unit_tests
         renderer
         loader
         core
+        camera
         gtest_main)
 
 include(GoogleTest)

@@ -5,6 +5,7 @@ set (SRCS
     resources/style/qdarkstyle/light/lightstyle.qrc
 )
 
+add_subdirectory(camera)
 add_subdirectory(renderer)
 add_subdirectory(ui)
 add_subdirectory(core)
@@ -25,6 +26,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
         ui
         core
         loader
+        camera
         compiler_props
 )
 

@@ -4,16 +4,19 @@
 
 #include <QImage>
 #include <QObject>
+#include <QPointF>
 #include <QSize>
 #include <QString>
 #include <QStringList>
 #include <QVariant>
+#include <QVector3D>
 
 #include <array>
 #include <memory>
 #include <vector>
 
 #include "AnariUtils.h"
+#include "Camera.h"
 
 class QTimer;
 
@@ -132,6 +135,18 @@ public slots:
     ///        and ignored.
     void loadSceneFromFile(const QString& path);
 
+    /// @brief Orbit the camera around its center. Delta is the mouse drag in
+    ///        pixels; mapped to yaw/pitch internally.
+    void orbitCamera(const QPointF& deltaPixels);
+
+    /// @brief Pan the camera (translate eye + center in the view plane).
+    ///        Delta is the mouse drag in pixels, scaled by view distance.
+    void panCamera(const QPointF& deltaPixels);
+
+    /// @brief Dolly the camera toward/away from its center. `steps` is in
+    ///        wheel notches (one notch == 120 raw units / 1.0 here).
+    void dollyCamera(float steps);
+
     /// @brief Begin or resume the render loop.
     void start();
 
@@ -143,6 +158,11 @@ signals:
     void frameReady(const QImage& image);
     void statusMessage(int level, const QString& message);
 
+    /// @brief Emitted whenever the camera basis changes (load / orbit / pan /
+    ///        dolly). Consumed by the axis-gizmo overlay. `forward` points
+    ///        from the eye toward the look-at center.
+    void cameraChanged(const QVector3D& right, const QVector3D& up, const QVector3D& forward);
+
 private slots:
     void renderTick();
 
@@ -151,7 +171,12 @@ private:
     void rebuildFrame();
     void emitStatus(LogLevel level, const QString& message);
 
+    /// @brief Re-push the camera state to the ANARI camera and emit
+    ///        cameraChanged. No-op if the device/camera aren't ready.
+    void commitCamera();
+
     std::unique_ptr<AnariStatusSink> m_statusSink;
+    std::unique_ptr<Camera> m_camera;
 
     ANARILibrary m_library{nullptr};
     ANARIDevice m_device{nullptr};

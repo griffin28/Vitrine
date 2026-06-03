@@ -18,6 +18,7 @@ namespace vitrine
 
 class AnariFrameWidget;
 class AnariRenderer;
+class CameraAxisOverlay;
 
 /// @brief Main application window. Owns the AnariRenderer (as a GUI-thread
 ///        child QObject) and embeds the AnariFrameWidget as the central
@@ -95,6 +96,7 @@ private:
     QWidget* m_centralWidget = nullptr;
     QVBoxLayout* m_mainLayout = nullptr;
     AnariFrameWidget* m_frameWidget = nullptr;
+    CameraAxisOverlay* m_axisOverlay = nullptr;
     CollapsibleLogWidget* m_logWidget = nullptr;
 
     QMenu* m_fileMenu = nullptr;

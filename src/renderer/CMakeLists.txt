@@ -21,8 +21,11 @@ target_include_directories(renderer
         ${stb_INCLUDE_DIRS}
 )
 
+# camera is PUBLIC: AnariRenderer.h includes Camera.h, so the camera include
+# dir (and glm, transitively) must reach renderer's consumers (ui, loader).
 target_link_libraries(renderer
     PUBLIC
         anari::anari
         Qt6::Core
-        Qt6::Gui)
+        Qt6::Gui
+        camera)

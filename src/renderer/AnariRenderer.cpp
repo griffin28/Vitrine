@@ -11,12 +11,18 @@
 #include <memory>
 
 #include "DataLoaderFactory.h"
+#include "PerspectiveCamera.h"
 
 namespace vitrine
 {
 
 namespace
 {
+
+// Mouse-drag sensitivities. Orbit/pan are per-pixel; dolly is per wheel notch.
+constexpr float kOrbitRadiansPerPixel = 0.01f;
+constexpr float kPanFractionPerPixel = 0.002f;  // scaled by view distance
+constexpr float kDollyFractionPerStep = 0.1f;   // scaled by view distance
 
 // Render loop interval (ms). We're on the GUI thread, so this is a soft cap
 // on how often we kick a new frame / poll for completion. 16ms targets 60Hz;
@@ -47,6 +53,7 @@ QVariant unwrapVariantToFloat32Vec4(const QVariant& v, std::array<float, 4>& out
 
 AnariRenderer::AnariRenderer(QObject* parent)
     : QObject(parent)
+    , m_camera(std::make_unique<PerspectiveCamera>())
 {
     m_renderTimer = new QTimer(this);
     m_renderTimer->setInterval(kRenderIntervalMs);
@@ -143,20 +150,14 @@ void AnariRenderer::loadBackend(const QString& libraryName, const QString& devic
         anariCommitParameters(m_device, m_anariScene.renderer);
     }
 
-    m_anariScene.camera = anariNewCamera(m_device, "perspective");
+    m_anariScene.camera = anariNewCamera(m_device, m_camera->anariSubtype());
     if (m_anariScene.camera) {
-        // Defaults: position at origin looking down -Z. The host can refine
-        // these once camera control is wired into the widget.
-        const std::array<float, 3> position{0.0f, 0.0f, 0.0f};
-        const std::array<float, 3> direction{0.0f, 0.0f, -1.0f};
-        const std::array<float, 3> up{0.0f, 1.0f, 0.0f};
-        anariSetParameter(m_device, m_anariScene.camera, "position", ANARI_FLOAT32_VEC3, position.data());
-        anariSetParameter(m_device, m_anariScene.camera, "direction", ANARI_FLOAT32_VEC3, direction.data());
-        anariSetParameter(m_device, m_anariScene.camera, "up", ANARI_FLOAT32_VEC3, up.data());
-        const float aspect = static_cast<float>(m_size.width()) /
-                             static_cast<float>(std::max(1, m_size.height()));
-        anariSetParameter(m_device, m_anariScene.camera, "aspect", ANARI_FLOAT32, &aspect);
-        anariCommitParameters(m_device, m_anariScene.camera);
+        // The camera holds the authoritative view state (default: eye at
+        // +Z looking at the origin). commitCamera() pushes it and notifies
+        // the overlay.
+        m_camera->setAspect(static_cast<float>(m_size.width()) /
+                            static_cast<float>(std::max(1, m_size.height())));
+        commitCamera();
     }
 
     m_anariScene.world = anariNewWorld(m_device);
@@ -266,10 +267,9 @@ void AnariRenderer::resize(const QSize& size)
     m_frameImage.fill(Qt::black);
 
     if (m_device && m_anariScene.camera) {
-        const float aspect = static_cast<float>(m_size.width()) /
-                             static_cast<float>(std::max(1, m_size.height()));
-        anariSetParameter(m_device, m_anariScene.camera, "aspect", ANARI_FLOAT32, &aspect);
-        anariCommitParameters(m_device, m_anariScene.camera);
+        m_camera->setAspect(static_cast<float>(m_size.width()) /
+                            static_cast<float>(std::max(1, m_size.height())));
+        commitCamera();
     }
     rebuildFrame();
 }
@@ -337,6 +337,46 @@ void AnariRenderer::loadSceneFromFile(const QString& path)
     m_anariScene.releaseContent(m_device);
 
     loader->loadSceneFromFile(m_device, m_anariScene, path);
+}
+
+void AnariRenderer::commitCamera()
+{
+    if (!m_device || !m_anariScene.camera || !m_camera) {
+        return;
+    }
+    m_camera->commit(m_device, m_anariScene.camera);
+    emit cameraChanged(m_camera->right(), m_camera->upVector(), m_camera->forward());
+}
+
+void AnariRenderer::orbitCamera(const QPointF& deltaPixels)
+{
+    if (!m_camera) {
+        return;
+    }
+    // Drag right -> orbit left (yaw), drag down -> orbit down (pitch).
+    m_camera->orbit(static_cast<float>(-deltaPixels.x()) * kOrbitRadiansPerPixel,
+                    static_cast<float>(deltaPixels.y()) * kOrbitRadiansPerPixel);
+    commitCamera();
+}
+
+void AnariRenderer::panCamera(const QPointF& deltaPixels)
+{
+    if (!m_camera) {
+        return;
+    }
+    const float scale = m_camera->distance() * kPanFractionPerPixel;
+    m_camera->pan(static_cast<float>(deltaPixels.x()) * scale,
+                  static_cast<float>(deltaPixels.y()) * scale);
+    commitCamera();
+}
+
+void AnariRenderer::dollyCamera(float steps)
+{
+    if (!m_camera) {
+        return;
+    }
+    m_camera->dolly(steps * m_camera->distance() * kDollyFractionPerStep);
+    commitCamera();
 }
 
 void AnariRenderer::start()

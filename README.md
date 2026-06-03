@@ -5,7 +5,7 @@ Qt6 application that renders through an [ANARI](https://www.khronos.org/anari/) 
 
 ## Project layout
 
-- `src/` main application, renderer, scene-file loaders, UI, and resources
+- `src/` main application, renderer, camera abstractions, scene-file loaders, UI, and resources
 - `tests/` unit tests (GoogleTest)
 - `CMake/` custom CMake find modules and project utilities
 
@@ -63,6 +63,26 @@ LD_LIBRARY_PATH=/path/to/Phenocryst/build ./build/bin/Vitrine
 ```
 
 Once running, **Options → Rendering...** opens a dialog that enumerates the available backend libraries, device subtypes, and renderer subtypes, and builds an editor panel for whatever parameters the chosen renderer advertises (e.g. `background`, `ambientRadiance`). The selection is persisted via `QSettings` under `KSG-Technology-Consulting / Vitrine`.
+
+## Camera control
+
+The view is driven by an interactive camera with the mouse over the render area:
+
+- **Left-drag** — orbit around the look-at center. Vertical drags pitch a full
+  360° over the poles (the camera can tumble fully upside down).
+- **Middle-drag** (or **Shift + left-drag**) — pan the camera in the view plane.
+- **Mouse wheel** — dolly toward / away from the look-at center.
+
+A small axis gizmo in the bottom-left corner of the render area shows the
+current camera orientation, drawing the world X (red), Y (green), and Z (blue)
+axes with a labeled sphere at each tip.
+
+Cameras live in `src/camera/` behind a `Camera` abstraction: the base class
+owns the shared view state (eye / center / up) and the orbit / pan / dolly
+manipulators, while a subclass supplies the ANARI camera subtype and its
+projection parameters. Only a `PerspectiveCamera` (subtype `perspective`,
+`fovy`) is implemented today; the split is designed so additional projections
+(e.g. orthographic) can be added without touching the manipulation or UI code.
 
 ## Loading models
 

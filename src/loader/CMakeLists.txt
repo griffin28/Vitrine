@@ -18,11 +18,13 @@ target_include_directories(loader
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/../renderer
         ${CMAKE_CURRENT_SOURCE_DIR}/../core
+        ${CMAKE_CURRENT_SOURCE_DIR}/../camera
         ${Qt6Core_INCLUDE_DIRS}
         ${Qt6Gui_INCLUDE_DIRS}
         ${Qt6Widgets_INCLUDE_DIRS}
         ${stb_INCLUDE_DIRS}
         ${tinyobjloader_INCLUDE_DIRS}
+        ${glm_INCLUDE_DIRS}
 )
 
 target_link_libraries(loader
