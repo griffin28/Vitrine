@@ -15,42 +15,6 @@
 
 namespace vitrine
 {
-
-namespace
-{
-
-// Mouse-drag sensitivities. Orbit/pan are per-pixel; dolly is per wheel notch.
-constexpr float kOrbitRadiansPerPixel = 0.01f;
-constexpr float kPanFractionPerPixel = 0.002f;  // scaled by view distance
-constexpr float kDollyFractionPerStep = 0.1f;   // scaled by view distance
-
-// Render loop interval (ms). We're on the GUI thread, so this is a soft cap
-// on how often we kick a new frame / poll for completion. 16ms targets 60Hz;
-// the actual render happens in parallel on backend-internal threads.
-constexpr int kRenderIntervalMs = 16;
-
-QVariant unwrapVariantToFloat32Vec4(const QVariant& v, std::array<float, 4>& out)
-{
-    if (v.canConvert<QColor>()) {
-        const QColor c = v.value<QColor>();
-        out = {static_cast<float>(c.redF()),
-               static_cast<float>(c.greenF()),
-               static_cast<float>(c.blueF()),
-               static_cast<float>(c.alphaF())};
-        return QVariant::fromValue(true);
-    }
-    const auto list = v.toList();
-    if (list.size() == 4) {
-        for (int i = 0; i < 4; ++i) {
-            out[i] = static_cast<float>(list[i].toDouble());
-        }
-        return QVariant::fromValue(true);
-    }
-    return QVariant::fromValue(false);
-}
-
-} // namespace
-
 AnariRenderer::AnariRenderer(QObject* parent)
     : QObject(parent)
     , m_camera(std::make_unique<PerspectiveCamera>())
@@ -379,6 +343,53 @@ void AnariRenderer::dollyCamera(float steps)
     commitCamera();
 }
 
+CameraConfig AnariRenderer::cameraConfig() const
+{
+    return m_camera ? m_camera->toConfig() : CameraConfig{};
+}
+
+void AnariRenderer::setCameraConfig(const CameraConfig& config)
+{
+    if (!m_camera) {
+        return;
+    }
+
+    const bool subtypeChanged = config.type != m_camera->type();
+
+    if (subtypeChanged) {
+        // Swap the Camera object so applyConfig targets the right subtype.
+        m_camera = makeCamera(config.type);
+
+        if (m_device) {
+            // The ANARI camera subtype is fixed at creation, so a type change
+            // means a new handle. Drain any in-flight frame before releasing
+            // the old one — the backend may still be reading it.
+            if (m_anariScene.camera && m_frameInFlight && m_anariScene.frame) {
+                anariFrameReady(m_device, m_anariScene.frame, ANARI_WAIT);
+                m_frameInFlight = false;
+            }
+            if (m_anariScene.camera) {
+                anariRelease(m_device, m_anariScene.camera);
+                m_anariScene.camera = nullptr;
+            }
+            m_anariScene.camera = anariNewCamera(m_device, m_camera->anariSubtype());
+        }
+    }
+
+    m_camera->setAspect(static_cast<float>(m_size.width()) /
+                        static_cast<float>(std::max(1, m_size.height())));
+    m_camera->applyConfig(config);
+
+    if (subtypeChanged) {
+        // Re-point the frame at the new camera handle, then commit state.
+        rebuildFrame();
+    }
+    commitCamera();
+
+    emitStatus(LogLevel::Info,
+               QStringLiteral("Camera set to \"%1\".").arg(m_camera->anariSubtype()));
+}
+
 void AnariRenderer::start()
 {
     if (!m_renderTimer->isActive()) {
@@ -439,6 +450,29 @@ void AnariRenderer::renderTick()
     // QImage uses implicit sharing, so emitting by value is cheap; receiver
     // gets its own snapshot if it later modifies it.
     emit frameReady(m_frameImage);
+}
+
+// Static Functions
+// ================
+
+QVariant AnariRenderer::unwrapVariantToFloat32Vec4(const QVariant& v, std::array<float, 4>& out)
+{
+    if (v.canConvert<QColor>()) {
+        const QColor c = v.value<QColor>();
+        out = {static_cast<float>(c.redF()),
+               static_cast<float>(c.greenF()),
+               static_cast<float>(c.blueF()),
+               static_cast<float>(c.alphaF())};
+        return QVariant::fromValue(true);
+    }
+    const auto list = v.toList();
+    if (list.size() == 4) {
+        for (int i = 0; i < 4; ++i) {
+            out[i] = static_cast<float>(list[i].toDouble());
+        }
+        return QVariant::fromValue(true);
+    }
+    return QVariant::fromValue(false);
 }
 
 } // namespace vitrine

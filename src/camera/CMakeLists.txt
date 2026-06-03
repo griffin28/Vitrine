@@ -1,8 +1,12 @@
 set(CAMERA_SRCS
+    CameraConfig.h
+    CameraConfig.cpp
     Camera.h
     Camera.cpp
     PerspectiveCamera.h
     PerspectiveCamera.cpp
+    OrthographicCamera.h
+    OrthographicCamera.cpp
 )
 
 add_library(camera OBJECT ${CAMERA_SRCS})

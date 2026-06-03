@@ -9,6 +9,11 @@ set(UI_SRCS
     AnariBackendDialog.cpp
     CameraAxisOverlay.h
     CameraAxisOverlay.cpp
+    CameraConfigDialog.h
+    CameraConfigDialog.cpp
+    UserPreferences.h
+    PreferencesDialog.h
+    PreferencesDialog.cpp
 )
 
 add_library(ui OBJECT ${UI_SRCS})

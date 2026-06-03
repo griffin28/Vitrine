@@ -75,14 +75,30 @@ The view is driven by an interactive camera with the mouse over the render area:
 
 A small axis gizmo in the bottom-left corner of the render area shows the
 current camera orientation, drawing the world X (red), Y (green), and Z (blue)
-axes with a labeled sphere at each tip.
+axes with a labeled sphere at each tip. It can be hidden via the preferences
+dialog (see below).
+
+**Options → Cameras...** opens a dialog for editing the camera directly: the
+projection subtype (perspective or orthographic), the eye / look-at / up
+vectors, the near / far clip planes, and either the vertical field of view
+(perspective) or the image-plane height (orthographic). Switching subtype
+recreates the underlying ANARI camera on the fly. The configuration is
+persisted via `QSettings` and re-applied on launch.
 
 Cameras live in `src/camera/` behind a `Camera` abstraction: the base class
 owns the shared view state (eye / center / up) and the orbit / pan / dolly
 manipulators, while a subclass supplies the ANARI camera subtype and its
-projection parameters. Only a `PerspectiveCamera` (subtype `perspective`,
-`fovy`) is implemented today; the split is designed so additional projections
-(e.g. orthographic) can be added without touching the manipulation or UI code.
+projection parameters. `PerspectiveCamera` (subtype `perspective`, `fovy`) and
+`OrthographicCamera` (subtype `orthographic`, `height`) are implemented; the
+base/derived split means an additional projection needs only a new `Camera`
+subclass plus one dialog entry — the manipulation and UI code are untouched.
+
+## Preferences
+
+**Edit → Preferences...** opens the preferences dialog where user-facing
+options are edited. The first preference toggles the camera axis-overlay gizmo
+on or off. Preferences are persisted via `QSettings` and re-applied on launch;
+the dialog is designed to grow — additional preferences are added as new rows.
 
 ## Loading models
 

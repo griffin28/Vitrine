@@ -7,7 +7,8 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 set(TEST_SRCS
-    TestAnariRenderer.cpp)
+    TestAnariRenderer.cpp
+    TestCamera.cpp)
 
 add_executable(unit_tests ${TEST_SRCS})
 

@@ -99,15 +99,38 @@ void Camera::dolly(float amount)
     glm::vec3 newEye = m_eye + forwardVec() * amount;
     // Reject the step if it would cross (or land on top of) the center.
     if (glm::length(m_center - newEye) < m_minEyeDistance ||
-        glm::dot(m_center - newEye, forwardVec()) <= 0.0f) {
+        glm::dot(m_center - newEye, forwardVec()) <= 0.0f) 
+    {
         newEye = m_center - forwardVec() * std::max(m_minEyeDistance, radius * 0.05f);
     }
     m_eye = newEye;
 }
 
+CameraConfig Camera::toConfig() const
+{
+    CameraConfig config;
+    config.type = type();
+    config.eye = m_eye;
+    config.center = m_center;
+    config.up = m_up;
+    config.nearClip = m_near;
+    config.farClip = m_far;
+    writeProjection(config);
+    return config;
+}
+
+void Camera::applyConfig(const CameraConfig& config)
+{
+    setLookAt(config.eye, config.center, config.up);
+    m_near = config.nearClip;
+    m_far = config.farClip;
+    readProjection(config);
+}
+
 void Camera::commit(ANARIDevice device, ANARICamera camera) const
 {
-    if (!device || !camera) {
+    if (!device || !camera) 
+    {
         return;
     }
 

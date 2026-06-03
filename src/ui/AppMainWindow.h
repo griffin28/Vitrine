@@ -2,16 +2,20 @@
 
 #include <QMainWindow>
 #include <QString>
+#include <QStyle>
 #include <QVector>
 
 #include "AnariBackendDialog.h"
+#include "CameraConfig.h"
 #include "CollapsibleLogWidget.h"
+#include "UserPreferences.h"
 
 class QMenu;
 class QAction;
 class QMessageBox;
 class QVBoxLayout;
 class QDialog;
+class QIcon;
 
 namespace vitrine
 {
@@ -50,18 +54,23 @@ public:
     static constexpr const char* KANARIDEVICESUBTYPE = "anari/backend/deviceSubtype";
     static constexpr const char* KANARIRENDERERSUBTYPE = "anari/backend/rendererSubtype";
     static constexpr const char* KANARIPARAMS = "anari/backend/parameters";
+    static constexpr const char* KCAMERA = "camera";
+    static constexpr const char* KPREFS = "preferences";
 
 private slots:
     void openFile();
     void showAboutDialog();
     void showPreferencesDialog();
     void showRenderingOptionsDialog();
+    void showCameraOptionsDialog();
     void onRendererStatusMessage(int level, const QString& message);
     void onBackendLoaded(bool ok, const QString& libraryName, const QString& deviceSubtype);
     void onBackendDialogConfigurationChanged(const QString& library,
                                              const QString& deviceSubtype,
                                              const QString& rendererSubtype,
                                              const QVector<AnariBackendDialog::ParamValue>& parameters);
+    void onCameraConfigChanged(const CameraConfig& config);
+    void onPreferencesChanged(const UserPreferences& preferences);
 
 private:
     void loadSettings();
@@ -79,6 +88,16 @@ private:
 
     void appendLogMessage(const QString& message, LogLevel level);
 
+    /// @brief Apply the current preferences to the relevant widgets (e.g. axis
+    ///        overlay visibility). Safe to call before/after the backend loads.
+    void applyPreferences();
+
+    /// @brief Resolve a menu-item icon, preferring a bundled resource, then a
+    ///        platform theme icon, then a Qt standard pixmap fallback.
+    QIcon menuIcon(const QString& resourcePath,
+                   const QString& themeName,
+                   QStyle::StandardPixmap fallback) const;
+
     bool m_darkMode = false;
 
     // Configuration (also persisted to QSettings).
@@ -86,6 +105,8 @@ private:
     QString m_anariDeviceSubtype{QStringLiteral("default")};
     QString m_anariRendererSubtype{QStringLiteral("default")};
     QVector<AnariBackendDialog::ParamValue> m_rendererParameters;
+    CameraConfig m_cameraConfig;
+    UserPreferences m_preferences;
 
     // Renderer lives on the GUI thread — many ANARI backends embed
     // libraries (embree, CUDA, etc.) that assume a stable "main-thread"
@@ -110,8 +131,7 @@ private:
     QAction* m_aboutQtAction = nullptr;
     QAction* m_preferencesAction = nullptr;
     QAction* m_renderingOptionsAction = nullptr;
-
-    QDialog* m_preferencesDialog = nullptr;
+    QAction* m_cameraOptionsAction = nullptr;
 };
 
 } // namespace vitrine

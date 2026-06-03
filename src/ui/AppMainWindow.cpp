@@ -3,6 +3,8 @@
 #include "AnariFrameWidget.h"
 #include "AnariRenderer.h"
 #include "CameraAxisOverlay.h"
+#include "CameraConfigDialog.h"
+#include "PreferencesDialog.h"
 #include "DataLoaderFactory.h"
 #include "AnariUtils.h"
 
@@ -19,6 +21,7 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QSettings>
+#include <QStyle>
 #include <QVBoxLayout>
 
 namespace vitrine
@@ -42,6 +45,9 @@ AppMainWindow::AppMainWindow(const QString& anariLibrary, bool darkMode, QWidget
     createCentralWidget();
     createRenderer();
 
+    // Apply persisted preferences now that the widgets they target exist.
+    applyPreferences();
+
     createActions();
     createFileMenu();
     createEditMenu();
@@ -53,13 +59,22 @@ AppMainWindow::AppMainWindow(const QString& anariLibrary, bool darkMode, QWidget
 
 AppMainWindow::~AppMainWindow()
 {
-    if (m_renderer) {
+    if (m_renderer) 
+    {
         m_renderer->stop();
     }
 }
 
 void AppMainWindow::closeEvent(QCloseEvent* event)
 {
+    // Halt the render loop before anything tears down so we aren't kicking or
+    // polling frames mid-shutdown. stop() pauses the timer; destroyBackend()
+    // then drains any in-flight frame and releases the ANARI device cleanly.
+    if (m_renderer) 
+    {
+        m_renderer->stop();
+        m_renderer->destroyBackend();
+    }
     saveSettings();
     QMainWindow::closeEvent(event);
 }
@@ -85,6 +100,30 @@ void AppMainWindow::loadSettings()
         }
     }
     settings.endArray();
+
+    settings.beginGroup(KCAMERA);
+    m_cameraConfig.type = static_cast<CameraType>(
+        settings.value("type", static_cast<int>(m_cameraConfig.type)).toInt());
+    m_cameraConfig.eye = {settings.value("eyeX", m_cameraConfig.eye.x).toFloat(),
+                          settings.value("eyeY", m_cameraConfig.eye.y).toFloat(),
+                          settings.value("eyeZ", m_cameraConfig.eye.z).toFloat()};
+    m_cameraConfig.center = {settings.value("centerX", m_cameraConfig.center.x).toFloat(),
+                             settings.value("centerY", m_cameraConfig.center.y).toFloat(),
+                             settings.value("centerZ", m_cameraConfig.center.z).toFloat()};
+    m_cameraConfig.up = {settings.value("upX", m_cameraConfig.up.x).toFloat(),
+                         settings.value("upY", m_cameraConfig.up.y).toFloat(),
+                         settings.value("upZ", m_cameraConfig.up.z).toFloat()};
+    m_cameraConfig.nearClip = settings.value("near", m_cameraConfig.nearClip).toFloat();
+    m_cameraConfig.farClip = settings.value("far", m_cameraConfig.farClip).toFloat();
+    m_cameraConfig.fovYDegrees = settings.value("fovYDegrees", m_cameraConfig.fovYDegrees).toFloat();
+    m_cameraConfig.height = settings.value("height", m_cameraConfig.height).toFloat();
+    settings.endGroup();
+
+    settings.beginGroup(KPREFS);
+    m_preferences.showAxisOverlay =
+        settings.value("showAxisOverlay", m_preferences.showAxisOverlay).toBool();
+    settings.endGroup();
+
     settings.endGroup();
 }
 
@@ -105,6 +144,28 @@ void AppMainWindow::saveSettings()
         settings.setValue("value", p.value);
     }
     settings.endArray();
+
+    settings.beginGroup(KCAMERA);
+    settings.setValue("type", static_cast<int>(m_cameraConfig.type));
+    settings.setValue("eyeX", m_cameraConfig.eye.x);
+    settings.setValue("eyeY", m_cameraConfig.eye.y);
+    settings.setValue("eyeZ", m_cameraConfig.eye.z);
+    settings.setValue("centerX", m_cameraConfig.center.x);
+    settings.setValue("centerY", m_cameraConfig.center.y);
+    settings.setValue("centerZ", m_cameraConfig.center.z);
+    settings.setValue("upX", m_cameraConfig.up.x);
+    settings.setValue("upY", m_cameraConfig.up.y);
+    settings.setValue("upZ", m_cameraConfig.up.z);
+    settings.setValue("near", m_cameraConfig.nearClip);
+    settings.setValue("far", m_cameraConfig.farClip);
+    settings.setValue("fovYDegrees", m_cameraConfig.fovYDegrees);
+    settings.setValue("height", m_cameraConfig.height);
+    settings.endGroup();
+
+    settings.beginGroup(KPREFS);
+    settings.setValue("showAxisOverlay", m_preferences.showAxisOverlay);
+    settings.endGroup();
+
     settings.endGroup();
 }
 
@@ -184,6 +245,9 @@ void AppMainWindow::onBackendLoaded(bool ok, const QString& libraryName, const Q
     m_renderer->setRendererSubtype(m_anariRendererSubtype);
     applyParameters(m_rendererParameters);
 
+    // Apply the persisted camera now that the ANARI camera handle exists.
+    m_renderer->setCameraConfig(m_cameraConfig);
+
     m_renderer->start();
 }
 
@@ -207,26 +271,66 @@ void AppMainWindow::appendLogMessage(const QString& message, LogLevel level)
     m_logWidget->appendLogMessage(message, level);
 }
 
+QIcon AppMainWindow::menuIcon(const QString& resourcePath,
+                              const QString& themeName,
+                              QStyle::StandardPixmap fallback) const
+{
+    // Prefer a bundled resource icon, then a platform theme icon, then fall
+    // back to a Qt-provided standard pixmap so every item always has an icon.
+    if (!resourcePath.isEmpty()) {
+        QIcon icon(resourcePath);
+        if (!icon.isNull()) {
+            return icon;
+        }
+    }
+    if (!themeName.isEmpty() && QIcon::hasThemeIcon(themeName)) {
+        return QIcon::fromTheme(themeName);
+    }
+    return style()->standardIcon(fallback);
+}
+
 void AppMainWindow::createActions()
 {
-    m_openFileAction = new QAction(tr("&Open File..."), this);
+    m_openFileAction = new QAction(
+        menuIcon(QString(), QStringLiteral("document-open"), QStyle::SP_DirOpenIcon),
+        tr("&Open File..."), this);
     m_openFileAction->setShortcut(QKeySequence::Open);
     connect(m_openFileAction, &QAction::triggered, this, &AppMainWindow::openFile);
 
-    m_closeAction = new QAction(QIcon(QStringLiteral(":/images/power.png")), tr("&Exit"), this);
-    connect(m_closeAction, &QAction::triggered, qApp, &QApplication::quit);
+    m_closeAction = new QAction(
+        menuIcon(QStringLiteral(":/images/power.png"), QStringLiteral("application-exit"),
+                 QStyle::SP_DialogCloseButton),
+        tr("&Exit"), this);
+    // Route through close() so closeEvent runs (stops the render loop + saves
+    // settings) rather than quitting the event loop out from under it.
+    connect(m_closeAction, &QAction::triggered, this, &AppMainWindow::close);
 
-    m_aboutAction = new QAction(tr("&About"), this);
+    m_aboutAction = new QAction(
+        menuIcon(QString(), QStringLiteral("help-about"), QStyle::SP_DialogHelpButton),
+        tr("&About"), this);
     connect(m_aboutAction, &QAction::triggered, this, &AppMainWindow::showAboutDialog);
 
-    m_aboutQtAction = new QAction(tr("About &Qt"), this);
+    m_aboutQtAction = new QAction(
+        menuIcon(QString(), QString(), QStyle::SP_TitleBarMenuButton),
+        tr("About &Qt"), this);
     connect(m_aboutQtAction, &QAction::triggered, qApp, &QApplication::aboutQt);
 
-    m_preferencesAction = new QAction(tr("&Preferences..."), this);
+    m_preferencesAction = new QAction(
+        menuIcon(QString(), QStringLiteral("preferences-system"),
+                 QStyle::SP_FileDialogDetailedView),
+        tr("&Preferences..."), this);
     connect(m_preferencesAction, &QAction::triggered, this, &AppMainWindow::showPreferencesDialog);
 
-    m_renderingOptionsAction = new QAction(tr("&Rendering..."), this);
+    m_renderingOptionsAction = new QAction(
+        menuIcon(QString(), QStringLiteral("applications-graphics"),
+                 QStyle::SP_DesktopIcon),
+        tr("&Rendering..."), this);
     connect(m_renderingOptionsAction, &QAction::triggered, this, &AppMainWindow::showRenderingOptionsDialog);
+
+    m_cameraOptionsAction = new QAction(
+        menuIcon(QString(), QStringLiteral("camera-photo"), QStyle::SP_FileDialogContentsView),
+        tr("&Camera..."), this);
+    connect(m_cameraOptionsAction, &QAction::triggered, this, &AppMainWindow::showCameraOptionsDialog);
 }
 
 void AppMainWindow::createFileMenu()
@@ -254,6 +358,7 @@ void AppMainWindow::createOptionsMenu()
 {
     m_optionsMenu = menuBar()->addMenu(tr("&Options"));
     m_optionsMenu->addAction(m_renderingOptionsAction);
+    m_optionsMenu->addAction(m_cameraOptionsAction);
 }
 
 void AppMainWindow::openFile()
@@ -316,24 +421,43 @@ void AppMainWindow::onBackendDialogConfigurationChanged(const QString& library,
     saveSettings();
 }
 
+void AppMainWindow::showCameraOptionsDialog()
+{
+    // Seed from the renderer's live camera so the dialog reflects any orbiting
+    // / panning the user has done since launch.
+    CameraConfigDialog dialog(m_renderer->cameraConfig(), this);
+    connect(&dialog, &CameraConfigDialog::cameraConfigChanged,
+            this, &AppMainWindow::onCameraConfigChanged);
+    dialog.exec();
+}
+
+void AppMainWindow::onCameraConfigChanged(const CameraConfig& config)
+{
+    m_cameraConfig = config;
+    m_renderer->setCameraConfig(config);
+    saveSettings();
+}
+
 void AppMainWindow::showPreferencesDialog()
 {
-    if (!m_preferencesDialog) {
-        m_preferencesDialog = new QDialog(this);
-        m_preferencesDialog->setWindowTitle(tr("Preferences"));
-        m_preferencesDialog->setModal(true);
+    PreferencesDialog dialog(m_preferences, this);
+    connect(&dialog, &PreferencesDialog::preferencesChanged,
+            this, &AppMainWindow::onPreferencesChanged);
+    dialog.exec();
+}
 
-        auto* mainLayout = new QVBoxLayout(m_preferencesDialog);
-        mainLayout->addWidget(new QLabel(
-            tr("Preferences are configured via the Options menu for now."),
-            m_preferencesDialog));
+void AppMainWindow::onPreferencesChanged(const UserPreferences& preferences)
+{
+    m_preferences = preferences;
+    applyPreferences();
+    saveSettings();
+}
 
-        auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close,
-                                             Qt::Horizontal, m_preferencesDialog);
-        connect(buttons, &QDialogButtonBox::rejected, m_preferencesDialog, &QDialog::reject);
-        mainLayout->addWidget(buttons);
+void AppMainWindow::applyPreferences()
+{
+    if (m_axisOverlay) {
+        m_axisOverlay->setVisible(m_preferences.showAxisOverlay);
     }
-    m_preferencesDialog->show();
 }
 
 } // namespace vitrine

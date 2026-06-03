@@ -6,75 +6,149 @@
 
 #include <glm/glm.hpp>
 
+#include "CameraConfig.h"
+
 namespace vitrine
 {
-
-/// @brief Abstract camera base. Owns the *view* state (eye / center / up,
-///        aspect, clip planes) and all projection-independent manipulators
-///        (orbit / pan / dolly). Projection-specific state lives in the
-///        derived class, which advertises its ANARI subtype and pushes its
-///        own parameters via applyProjection().
+/// @class Camera
+/// @brief Abstract ANARI camera base.
 ///
-/// This split is what makes a future OrthographicCamera a drop-in: it would
-/// only override anariSubtype() / applyProjection() (setting "height" instead
-/// of "fovy") and reuse every manipulator here unchanged.
+/// Camera owns the shared view state for an ANARI camera, including eye,
+/// center, up, aspect, clip planes, and projection-independent manipulators
+/// such as orbit, pan, and dolly.
+///
+/// Projection-specific state lives in derived classes. Each derived class
+/// reports its ANARI camera subtype and writes its own projection parameters
+/// through applyProjection().
 class Camera
 {
 public:
+    /// @brief Default constructor
     Camera() = default;
+
+    /// @brief Destructor
     virtual ~Camera() = default;
 
+    /// @brief Copy constructor
     Camera(const Camera&) = default;
+
+    /// @brief Copy assignment operator
+    /// @return reference to this camera
     Camera& operator=(const Camera&) = default;
 
-    /// @brief ANARI camera subtype string (e.g. "perspective").
+    /// @brief Get the ANARI camera subtype string
+    /// @return ANARI camera subtype string, such as "perspective"
     virtual const char* anariSubtype() const = 0;
 
-    /// @brief Push shared view parameters (position/direction/up/aspect/
-    ///        near/far) plus the projection-specific ones, then commit.
+    /// @brief Get the camera projection type
+    /// @return projection type implemented by this camera
+    virtual CameraType type() const = 0;
+
+    /// @brief Commit camera state to an ANARI camera
+    /// @param device ANARI device that owns the camera
+    /// @param camera ANARI camera object to update
     void commit(ANARIDevice device, ANARICamera camera) const;
 
-    // --- View manipulators (projection-independent) -----------------------
+    /// @brief Convert the current camera state to a CameraConfig
+    /// @return camera configuration containing view and projection state
+    CameraConfig toConfig() const;
 
-    /// @brief Orbit the eye around the center. Angles in radians; pitch is
-    ///        clamped to avoid flipping over the poles.
+    /// @brief Apply a CameraConfig to this camera
+    /// @param config camera configuration containing view and projection state
+    void applyConfig(const CameraConfig& config);
+
+    /// @brief Orbit the eye around the center
+    /// @param yawRadians yaw angle in radians
+    /// @param pitchRadians pitch angle in radians
     void orbit(float yawRadians, float pitchRadians);
 
-    /// @brief Translate eye and center together within the view plane.
-    ///        Deltas are in world units (already scaled by the caller).
+    /// @brief Translate the eye and center together in the view plane
+    /// @param dx horizontal pan distance in world units
+    /// @param dy vertical pan distance in world units
     void pan(float dx, float dy);
 
-    /// @brief Move the eye toward (positive) or away from (negative) the
-    ///        center along the view direction. Distance is clamped to a small
-    ///        minimum so the eye never reaches the center.
+    /// @brief Move the eye toward or away from the center
+    /// @param amount distance to move along the view direction
     void dolly(float amount);
 
-    // --- Accessors --------------------------------------------------------
-
+    /// @brief Set the look-at camera view
+    /// @param eye camera eye position
+    /// @param center look-at center position
+    /// @param up camera up vector
     void setLookAt(const glm::vec3& eye, const glm::vec3& center, const glm::vec3& up);
+
+    /// @brief Set the viewport aspect ratio
+    /// @param aspect viewport width divided by height
     void setAspect(float aspect) { m_aspect = aspect; }
+
+    /// @brief Set the minimum allowed eye-to-center distance
+    /// @param d minimum eye distance
     void setMinEyeDistance(float d) { m_minEyeDistance = d; }
 
+    /// @brief Get the near clipping plane
+    /// @return near clipping distance
+    float nearClip() const { return m_near; }
+
+    /// @brief Get the far clipping plane
+    /// @return far clipping distance
+    float farClip() const { return m_far; }
+
+    /// @brief Set the near clipping plane
+    /// @param n near clipping distance
+    void setNearClip(float n) { m_near = n; }
+
+    /// @brief Set the far clipping plane
+    /// @param f far clipping distance
+    void setFarClip(float f) { m_far = f; }
+
+    /// @brief Get the camera eye position
+    /// @return camera eye position
     glm::vec3 eye() const { return m_eye; }
+
+    /// @brief Get the camera look-at center
+    /// @return camera look-at center
     glm::vec3 center() const { return m_center; }
 
-    /// @brief Distance from eye to center.
+    /// @brief Get the distance from eye to center
+    /// @return distance from eye to center
     float distance() const;
 
-    // Orthonormal view basis, returned as QVector3D so callers (e.g. the
-    // axis overlay) don't need glm. forward points from eye toward center.
+    /// @brief Get the camera right basis vector
+    /// @return camera right basis vector
     QVector3D right() const;
+
+    /// @brief Get the camera up basis vector
+    /// @return camera up basis vector
     QVector3D upVector() const;
+
+    /// @brief Get the camera forward basis vector
+    /// @return camera forward basis vector from eye toward center
     QVector3D forward() const;
 
 protected:
-    /// @brief Set the projection-specific parameters on the ANARI camera
-    ///        (no commit; commit() handles that).
+    /// @brief Set projection-specific parameters on the ANARI camera
+    /// @param device ANARI device that owns the camera
+    /// @param camera ANARI camera object to update
     virtual void applyProjection(ANARIDevice device, ANARICamera camera) const = 0;
 
-    // Computed orthonormal basis from the current eye/center/up.
+    /// @brief Write projection-specific state to a CameraConfig
+    /// @param config camera configuration to update
+    virtual void writeProjection(CameraConfig& config) const = 0;
+
+    /// @brief Read projection-specific state from a CameraConfig
+    /// @param config camera configuration to read
+    virtual void readProjection(const CameraConfig& config) = 0;
+
+    /// @brief Compute the forward basis vector
+    /// @return forward basis vector from eye toward center
     glm::vec3 forwardVec() const;
+
+    /// @brief Compute the right basis vector
+    /// @return right basis vector
     glm::vec3 rightVec() const;
+
+    /// @brief Compute the orthonormal up basis vector
+    /// @return orthonormal up basis vector
     glm::vec3 trueUpVec() const;
 
     glm::vec3 m_eye{0.0f, 0.0f, 5.0f};
