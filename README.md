@@ -1,7 +1,7 @@
 # Vitrine
 <img width="1104" height="1013" alt="phenocryst_ss2" src="https://github.com/user-attachments/assets/8005dac1-529e-413b-b2f8-dc9709fa990e" />
 
-Qt6 application that renders through an [ANARI](https://www.khronos.org/anari/) device. All Vulkan work happens inside the ANARI backend — typically [Phenocryst](https://github.com/KSG-Technology-Consulting/Phenocryst), an out-of-tree Vulkan-backed ANARI rendering device. The Qt side displays the ANARI framebuffer and exposes a runtime UI for selecting the backend library and editing its renderer parameters via ANARI introspection.
+Very early stages of a Qt6 application that renders through an [ANARI](https://www.khronos.org/anari/) device. Primary use case (for now) is to assist with the development of [Phenocryst](https://github.com/KSG-Technology-Consulting/Phenocryst), an out-of-tree Vulkan-backed ANARI rendering device. The Qt side displays the ANARI framebuffer and exposes a runtime UI for selecting the backend library and editing its renderer parameters via ANARI introspection.
 
 ## Project layout
 
