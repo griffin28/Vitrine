@@ -15,13 +15,13 @@ namespace vitrine
 ///
 /// The widget knows nothing about ANARI or glm — it consumes only the camera's
 /// orthonormal basis (right / up / forward) via setBasis().
-class CameraAxisOverlay : public QWidget
+class SceneAxisOverlay : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit CameraAxisOverlay(QWidget* parent = nullptr);
-    ~CameraAxisOverlay() override = default;
+    explicit SceneAxisOverlay(QWidget* parent = nullptr);
+    ~SceneAxisOverlay() override = default;
 
 public slots:
     /// @brief Update the camera basis used to orient the gizmo. `forward`

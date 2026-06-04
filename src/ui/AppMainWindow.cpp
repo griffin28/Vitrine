@@ -2,7 +2,7 @@
 
 #include "AnariFrameWidget.h"
 #include "AnariRenderer.h"
-#include "CameraAxisOverlay.h"
+#include "SceneAxisOverlay.h"
 #include "CameraConfigDialog.h"
 #include "PreferencesDialog.h"
 #include "DataLoaderFactory.h"
@@ -38,15 +38,13 @@ AppMainWindow::AppMainWindow(const QString& anariLibrary, bool darkMode, QWidget
     setWindowTitle(tr("Vitrine"));
 
     loadSettings();
-    if (!anariLibrary.isEmpty()) {
+    if (!anariLibrary.isEmpty()) 
+    {
         m_anariLibrary = anariLibrary;
     }
 
     createCentralWidget();
     createRenderer();
-
-    // Apply persisted preferences now that the widgets they target exist.
-    applyPreferences();
 
     createActions();
     createFileMenu();
@@ -54,6 +52,8 @@ AppMainWindow::AppMainWindow(const QString& anariLibrary, bool darkMode, QWidget
     createOptionsMenu();
     createHelpMenu();
 
+    // Apply persisted preferences now that the widgets they target exist.
+    applyPreferences();
     startBackend();
 }
 
@@ -182,7 +182,7 @@ void AppMainWindow::createCentralWidget()
     // Axis gizmo floats over the rendered frame (bottom-left corner). It is a
     // child of the frame widget rather than a layout item so it can overlap
     // the image; we reposition it whenever the frame widget resizes.
-    m_axisOverlay = new CameraAxisOverlay(m_frameWidget);
+    m_axisOverlay = new SceneAxisOverlay(m_frameWidget);
     m_axisOverlay->show();
 
     m_logWidget = new CollapsibleLogWidget(tr("Log"), kDefaultLogHeight, m_centralWidget);
@@ -213,12 +213,13 @@ void AppMainWindow::createRenderer()
     connect(m_frameWidget, &AnariFrameWidget::dollyRequested,
             m_renderer, &AnariRenderer::dollyCamera);
     connect(m_renderer, &AnariRenderer::cameraChanged,
-            m_axisOverlay, &CameraAxisOverlay::setBasis);
+            m_axisOverlay, &SceneAxisOverlay::setBasis);
 
     // Keep the gizmo pinned to the frame widget's bottom-left corner.
     connect(m_frameWidget, &AnariFrameWidget::resized,
             this, [this](const QSize& size) {
-                if (m_axisOverlay) {
+                if (m_axisOverlay) 
+                {
                     constexpr int margin = 8;
                     m_axisOverlay->move(margin,
                                         size.height() - m_axisOverlay->height() - margin);
@@ -235,7 +236,8 @@ void AppMainWindow::startBackend()
 
 void AppMainWindow::onBackendLoaded(bool ok, const QString& libraryName, const QString& deviceSubtype)
 {
-    if (!ok) {
+    if (!ok) 
+    {
         appendErrorLogMessage(tr("Failed to load ANARI backend \"%1\".").arg(libraryName));
         return;
     }
@@ -253,7 +255,8 @@ void AppMainWindow::onBackendLoaded(bool ok, const QString& libraryName, const Q
 
 void AppMainWindow::applyParameters(const QVector<AnariBackendDialog::ParamValue>& parameters)
 {
-    for (const auto& p : parameters) {
+    for (const auto& p : parameters) 
+    {
         m_renderer->setRendererParameter(p.name, p.type, p.value);
     }
 }
@@ -356,7 +359,7 @@ void AppMainWindow::createEditMenu()
 
 void AppMainWindow::createOptionsMenu()
 {
-    m_optionsMenu = menuBar()->addMenu(tr("&Options"));
+    m_optionsMenu = menuBar()->addMenu(tr("&Anari"));
     m_optionsMenu->addAction(m_renderingOptionsAction);
     m_optionsMenu->addAction(m_cameraOptionsAction);
 }

@@ -1,4 +1,4 @@
-#include "CameraAxisOverlay.h"
+#include "SceneAxisOverlay.h"
 
 #include <QColor>
 #include <QFont>
@@ -27,7 +27,7 @@ struct ProjectedAxis
 };
 } // namespace
 
-CameraAxisOverlay::CameraAxisOverlay(QWidget* parent)
+SceneAxisOverlay::SceneAxisOverlay(QWidget* parent)
     : QWidget(parent)
 {
     // Float over the rendered frame without intercepting camera drags or
@@ -35,18 +35,20 @@ CameraAxisOverlay::CameraAxisOverlay(QWidget* parent)
     setAttribute(Qt::WA_TransparentForMouseEvents, true);
     setAttribute(Qt::WA_NoSystemBackground, true);
     setAttribute(Qt::WA_TranslucentBackground, true);
-    setFixedSize(90, 90);
+    setFixedSize(100, 100);
 }
 
-void CameraAxisOverlay::setBasis(const QVector3D& right, const QVector3D& up, const QVector3D& forward)
+void SceneAxisOverlay::setBasis(const QVector3D& right, const QVector3D& up, const QVector3D& forward)
 {
+    // Use the camera basis verbatim so the gizmo rotates identically to the
+    // scene content under it (both are the world as the camera sees it).
     m_right = right;
     m_up = up;
     m_forward = forward;
     update();
 }
 
-void CameraAxisOverlay::paintEvent(QPaintEvent* /*event*/)
+void SceneAxisOverlay::paintEvent(QPaintEvent* /*event*/)
 {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);

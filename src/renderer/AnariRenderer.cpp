@@ -379,8 +379,9 @@ void AnariRenderer::orbitCamera(const QPointF& deltaPixels)
     if (!m_camera) {
         return;
     }
-    // Drag right -> orbit left (yaw), drag down -> orbit down (pitch).
-    m_camera->orbit(static_cast<float>(-deltaPixels.x()) * kOrbitRadiansPerPixel,
+    // Scene follows the cursor: drag right -> scene rotates right (yaw),
+    // drag down -> scene rotates down (pitch).
+    m_camera->orbit(static_cast<float>(deltaPixels.x()) * kOrbitRadiansPerPixel,
                     static_cast<float>(deltaPixels.y()) * kOrbitRadiansPerPixel);
     commitCamera();
 }

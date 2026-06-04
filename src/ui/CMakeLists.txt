@@ -7,8 +7,8 @@ set(UI_SRCS
     AnariFrameWidget.cpp
     AnariBackendDialog.h
     AnariBackendDialog.cpp
-    CameraAxisOverlay.h
-    CameraAxisOverlay.cpp
+    SceneAxisOverlay.h
+    SceneAxisOverlay.cpp
     CameraConfigDialog.h
     CameraConfigDialog.cpp
     UserPreferences.h
