@@ -208,7 +208,7 @@ public:
                     auto* spin = new QDoubleSpinBox(container);
                     spin->setDecimals(4);
                     spin->setRange(minimum ? minimum[i] : -1e6,
-                                   maximum ? maximum[i] : 1e6);
+                                    maximum ? maximum[i] : 1e6);
                     spin->setSingleStep(0.1);
                     spin->setValue(values[i]);
                     hbox->addWidget(spin);
@@ -267,7 +267,7 @@ private slots:
     void onAccepted();
 
 private:
-    void buildParameterPanel();
+    void buildParameterPanel(const int);
     void releaseProbe();
     QWidget* makeWidgetForParameter(const AnariRendererParameter& p, const QVariant& current);
     QVariant readWidget(int type, QWidget* editor) const;

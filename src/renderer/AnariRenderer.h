@@ -146,12 +146,6 @@ public:
     /// @brief Destroy the current ANARI backend and release its handles
     void destroyBackend();
 
-    /// @brief Convert a QVariant to an ANARI FLOAT32_VEC4 value
-    /// @param v variant containing a QColor or four numeric values
-    /// @param out destination array for the converted values
-    /// @return true if conversion succeeded, false otherwise
-    static QVariant unwrapVariantToFloat32Vec4(const QVariant& v, std::array<float, 4>& out);
-
     /// @brief Orbit sensitivity in radians per mouse pixel
     static constexpr float kOrbitRadiansPerPixel = 0.01f;
 

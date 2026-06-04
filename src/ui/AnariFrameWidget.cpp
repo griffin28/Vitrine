@@ -37,7 +37,8 @@ void AnariFrameWidget::paintEvent(QPaintEvent* /*event*/)
     }
     if (m_image.size() == size()) {
         painter.drawImage(0, 0, m_image);
-    } else {
+    } 
+    else {
         // Renderer hasn't caught up to the new widget size yet — scale the
         // last frame to fill so we don't blink to black on every resize.
         painter.drawImage(rect(), m_image);

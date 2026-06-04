@@ -5,6 +5,8 @@
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <QVariant>
+#include <QColor>
 
 #include <functional>
 #include <vector>
@@ -207,6 +209,70 @@ namespace AnariUtils
     /// @param rendererSubtype renderer subtype name to inspect
     /// @return renderer parameter metadata exposed by the subtype
     std::vector<AnariRendererParameter> enumerateRendererParameters(ANARIDevice device, const QString& rendererSubtype);
+
+    /// @brief Convert a QVariant to an ANARI FLOAT32_VEC4 value
+    /// @param v variant containing a QColor or N numeric values
+    /// @param out destination array for the converted values
+    /// @return true if conversion succeeded, false otherwise
+    template <typename T, int N>
+    bool unwrapVariantToVec(const QVariant& v, std::array<T, N>& out)
+    {
+        if (v.canConvert<QColor>()) 
+        {
+            const QColor c = v.value<QColor>();
+            if (N == 4) 
+            {
+                out[0] = static_cast<T>(c.redF());
+                out[1] = static_cast<T>(c.greenF());
+                out[2] = static_cast<T>(c.blueF());
+                out[3] = static_cast<T>(c.alphaF());
+            }
+            else if(N == 3)
+            {
+                out[0] = static_cast<T>(c.redF());
+                out[1] = static_cast<T>(c.greenF());
+                out[2] = static_cast<T>(c.blueF());
+            }
+            else
+            {
+                return false;
+            }
+            return true;
+        }
+        const auto list = v.toList();
+        if (list.size() == N) 
+        {
+            for (int i = 0; i < N; ++i) 
+            {
+                out[i] = static_cast<T>(list[i].toDouble());
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /// @brief Convert and set an ANARI renderer vector parameter from a QVariant
+    /// @tparam T scalar component type for the ANARI vector
+    /// @tparam N vector component count
+    /// @param device ANARI device used to set the parameter
+    /// @param renderer renderer object that owns the parameter
+    /// @param type ANARI vector data type to pass to anariSetParameter()
+    /// @param name renderer parameter name
+    /// @param value QColor or QVariantList containing N numeric components
+    template <typename T, int N>
+    void setAnariRendererVectorParameter(ANARIDevice device, 
+                                         ANARIRenderer renderer, 
+                                         ANARIDataType type,
+                                         const QString& name,
+                                         const QVariant& value)
+    {
+        const QByteArray nameUtf8 = name.toUtf8();
+        std::array<T, N> v{};
+        if (unwrapVariantToVec<T, N>(value, v))
+        {
+            anariSetParameter(device, renderer, nameUtf8.constData(), type, v.data());
+        }
+    }
 } // namespace AnariUtils
 
 } // namespace vitrine

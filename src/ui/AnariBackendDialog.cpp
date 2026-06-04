@@ -41,16 +41,16 @@ AnariBackendDialog::AnariBackendDialog(const QString& initialLibrary,
     auto* topForm = new QFormLayout();
 
     m_libraryCombo = new QComboBox(this);
-    for (const QString& lib : AnariUtils::enumerateBackendLibraries()) {
+    for (const QString& lib : AnariUtils::enumerateBackendLibraries()) 
+    {
         m_libraryCombo->addItem(lib);
     }
-    if (m_libraryCombo->findText(initialLibrary) < 0 && !initialLibrary.isEmpty()) {
-        m_libraryCombo->insertItem(0, initialLibrary);
-    }
-    int initialLibIndex = m_libraryCombo->findText(
-        initialLibrary.isEmpty() ? QStringLiteral("phenocryst") : initialLibrary);
-    if (initialLibIndex < 0) {
-        m_libraryCombo->insertItem(0, initialLibrary);
+
+    m_selectedLibrary = m_selectedLibrary.isEmpty() ? QStringLiteral("phenocryst") : m_selectedLibrary;
+    int initialLibIndex = m_libraryCombo->findText(m_selectedLibrary);
+    if (initialLibIndex < 0) 
+    {
+        m_libraryCombo->insertItem(0, m_selectedLibrary);
         initialLibIndex = 0;
     }
     m_libraryCombo->setCurrentIndex(initialLibIndex);
@@ -105,14 +105,15 @@ void AnariBackendDialog::releaseProbe()
     m_probeStatusSink.reset();
 }
 
-void AnariBackendDialog::onLibraryChanged(int /*comboIndex*/)
+void AnariBackendDialog::onLibraryChanged(int index)
 {
     releaseProbe();
     m_deviceSubtypeCombo->clear();
     m_rendererSubtypeCombo->clear();
 
-    const QString library = m_libraryCombo->currentText();
-    if (library.isEmpty()) {
+    const QString library = m_libraryCombo->itemText(index);
+    if (library.isEmpty()) 
+    {
         return;
     }
 
@@ -125,21 +126,25 @@ void AnariBackendDialog::onLibraryChanged(int /*comboIndex*/)
     m_probeLibrary = anariLoadLibrary(libUtf8.constData(),
                                       m_probeStatusSink->callback(),
                                       m_probeStatusSink->userData());
-    if (!m_probeLibrary) {
+    if (!m_probeLibrary) 
+    {
         m_parameterForm->addRow(new QLabel(
             tr("Could not load ANARI library \"%1\". Check ANARI_LIBRARY_PATH.")
                 .arg(library)));
         return;
     }
 
-    for (const QString& sub : AnariUtils::enumerateDeviceSubtypes(m_probeLibrary)) {
+    for (const QString& sub : AnariUtils::enumerateDeviceSubtypes(m_probeLibrary)) 
+    {
         m_deviceSubtypeCombo->addItem(sub);
     }
-    if (m_deviceSubtypeCombo->count() == 0) {
+    if (m_deviceSubtypeCombo->count() == 0) 
+    {
         m_deviceSubtypeCombo->addItem(QStringLiteral("default"));
     }
     int devIdx = m_deviceSubtypeCombo->findText(m_selectedDeviceSubtype);
-    if (devIdx < 0) {
+    if (devIdx < 0) 
+    {
         devIdx = 0;
     }
     m_deviceSubtypeCombo->setCurrentIndex(devIdx);
@@ -147,19 +152,22 @@ void AnariBackendDialog::onLibraryChanged(int /*comboIndex*/)
     onDeviceSubtypeChanged(devIdx);
 }
 
-void AnariBackendDialog::onDeviceSubtypeChanged(int /*comboIndex*/)
+void AnariBackendDialog::onDeviceSubtypeChanged(int index)
 {
-    if (m_probeDevice) {
+    if (m_probeDevice) 
+    {
         anariRelease(m_probeDevice, m_probeDevice);
         m_probeDevice = nullptr;
     }
     m_rendererSubtypeCombo->clear();
 
-    if (!m_probeLibrary) {
+    if (!m_probeLibrary) 
+    {
         return;
     }
-    const QString subtype = m_deviceSubtypeCombo->currentText();
-    if (subtype.isEmpty()) {
+    const QString subtype = m_deviceSubtypeCombo->itemText(index);
+    if (subtype.isEmpty()) 
+    {
         return;
     }
     const QByteArray utf8 = subtype.toUtf8();
@@ -169,64 +177,76 @@ void AnariBackendDialog::onDeviceSubtypeChanged(int /*comboIndex*/)
     }
     anariCommitParameters(m_probeDevice, m_probeDevice);
 
-    for (const QString& sub : AnariUtils::enumerateRendererSubtypes(m_probeDevice)) {
+    for (const QString& sub : AnariUtils::enumerateRendererSubtypes(m_probeDevice)) 
+    {
         m_rendererSubtypeCombo->addItem(sub);
     }
-    if (m_rendererSubtypeCombo->count() == 0) {
+    if (m_rendererSubtypeCombo->count() == 0) 
+    {
         m_rendererSubtypeCombo->addItem(QStringLiteral("default"));
     }
     int rendIdx = m_rendererSubtypeCombo->findText(m_selectedRendererSubtype);
-    if (rendIdx < 0) {
+    if (rendIdx < 0) 
+    {
         rendIdx = 0;
     }
     m_rendererSubtypeCombo->setCurrentIndex(rendIdx);
     onRendererSubtypeChanged(rendIdx);
 }
 
-void AnariBackendDialog::onRendererSubtypeChanged(int /*comboIndex*/)
+void AnariBackendDialog::onRendererSubtypeChanged(int index)
 {
-    buildParameterPanel();
+    buildParameterPanel(index);
 }
 
-void AnariBackendDialog::buildParameterPanel()
+void AnariBackendDialog::buildParameterPanel(const int index)
 {
     // Clear current form.
-    while (m_parameterForm->rowCount() > 0) {
+    while (m_parameterForm->rowCount() > 0) 
+    {
         m_parameterForm->removeRow(0);
     }
     m_editors.clear();
 
-    if (!m_probeDevice) {
+    if (!m_probeDevice) 
+    {
         return;
     }
-    const QString rendererSubtype = m_rendererSubtypeCombo->currentText();
-    if (rendererSubtype.isEmpty()) {
+    const QString rendererSubtype = m_rendererSubtypeCombo->itemText(index);
+    if (rendererSubtype.isEmpty()) 
+    {
         return;
     }
 
     const auto params = AnariUtils::enumerateRendererParameters(m_probeDevice, rendererSubtype);
-    if (params.empty()) {
+    if (params.empty()) 
+    {
         m_parameterForm->addRow(new QLabel(
             tr("(Renderer \"%1\" exposes no parameters via introspection.)")
                 .arg(rendererSubtype)));
         return;
     }
 
-    for (const auto& p : params) {
+    for (const auto& p : params) 
+    {
         // Seed from the caller-provided initial values if the names match.
         QVariant initial;
         QString pname = p.getName();
         ANARIDataType ptype = p.getType();
         QString pdescription = p.getDescription();
 
-        for (const auto& iv : m_initialParameters) {
-            if (iv.name == pname && iv.type == static_cast<int>(ptype)) {
+        for (const auto& iv : m_initialParameters) 
+        {
+            if (iv.name == pname && iv.type == static_cast<int>(ptype)) 
+            {
                 initial = iv.value;
                 break;
             }
         }
+
         QWidget* widget = makeWidgetForParameter(p, initial);
-        if (!widget) {
+        if (!widget) 
+        {
             continue;
         }
 
@@ -373,7 +393,8 @@ QVariant AnariBackendDialog::readWidget(int type, QWidget* editor) const
         }
     }
 
-    const auto readDoubleSpinBoxes = [editor](int components) -> QVariant {
+    const auto readDoubleSpinBoxes = [editor](int components) -> QVariant 
+    {
         if (auto* spin = qobject_cast<QDoubleSpinBox*>(editor)) {
             return components == 1 ? QVariant(spin->value()) : QVariant();
         }
