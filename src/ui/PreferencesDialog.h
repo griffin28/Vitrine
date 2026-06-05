@@ -10,26 +10,38 @@ class QFormLayout;
 namespace vitrine
 {
 
-/// @brief Modal dialog for editing user preferences. Seeded from a
-///        UserPreferences and emits preferencesChanged() with the edited values
-///        when accepted. The form layout is the expansion surface: future
-///        preferences add a widget + row here and a field in UserPreferences.
+/// @class PreferencesDialog
+/// @brief User preferences dialog.
+///
+/// PreferencesDialog lets the user edit application-level preferences such as
+/// the scene axis overlay visibility.
+///
+/// The dialog is seeded from a UserPreferences value. When the user accepts the
+/// dialog, the edited preferences are emitted through preferencesChanged().
 class PreferencesDialog : public QDialog
 {
     Q_OBJECT
 
 public:
+    /// @brief Constructor
+    /// @param initial initial user preferences
+    /// @param parent parent widget
     explicit PreferencesDialog(const UserPreferences& initial, QWidget* parent = nullptr);
+
+    /// @brief Destructor
     ~PreferencesDialog() override = default;
 
-    /// @brief The preferences as currently shown in the widgets.
+    /// @brief Get the preferences currently shown in the widgets
+    /// @return current user preferences
     UserPreferences preferences() const;
 
 signals:
-    /// @brief Emitted on accept with the edited preferences.
+    /// @brief Signal emitted when the user accepts the dialog preferences
+    /// @param preferences edited user preferences
     void preferencesChanged(const UserPreferences& preferences);
 
 private slots:
+    /// @brief Accept the dialog and emit the edited user preferences
     void onAccepted();
 
 private:

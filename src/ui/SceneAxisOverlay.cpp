@@ -13,20 +13,6 @@
 namespace vitrine
 {
 
-namespace
-{
-constexpr int kMargin = 8;       // px between the gizmo and the widget edge
-constexpr qreal kSphereRadius = 7.0;  // px radius of the tip spheres
-
-struct ProjectedAxis
-{
-    QPointF screen;  // tip offset from the gizmo center, in pixels
-    float depth;     // along the view forward axis; larger == farther away
-    QColor color;
-    QChar label;
-};
-} // namespace
-
 SceneAxisOverlay::SceneAxisOverlay(QWidget* parent)
     : QWidget(parent)
 {
@@ -90,7 +76,8 @@ void SceneAxisOverlay::paintEvent(QPaintEvent* /*event*/)
     labelFont.setPixelSize(static_cast<int>(kSphereRadius * 1.4));
     painter.setFont(labelFont);
 
-    for (const ProjectedAxis& axis : axes) {
+    for (const ProjectedAxis& axis : axes) 
+    {
         const QPointF tip = center + axis.screen;
 
         // Axis line.
@@ -107,7 +94,7 @@ void SceneAxisOverlay::paintEvent(QPaintEvent* /*event*/)
         // Axis label, drawn in black on top of the sphere.
         painter.setPen(QColor(0, 0, 0));
         painter.drawText(QRectF(tip.x() - kSphereRadius, tip.y() - kSphereRadius,
-                                2.0 * kSphereRadius, 2.0 * kSphereRadius),
+                         2.0 * kSphereRadius, 2.0 * kSphereRadius),
                          Qt::AlignCenter, QString(axis.label));
     }
 

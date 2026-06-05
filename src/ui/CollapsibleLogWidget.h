@@ -20,7 +20,7 @@ public:
     /// @param title the title of the log widget.
     /// @param expandedHeight the height of the widget when expanded.
     /// @param parent the parent widget.
-    explicit CollapsibleLogWidget(const QString &title, int expandedHeight=200, QWidget* parent = nullptr);
+    explicit CollapsibleLogWidget(const QString &title, int expandedHeight=300, QWidget* parent = nullptr);
     
     /// @brief Destructor
     ~CollapsibleLogWidget() = default;

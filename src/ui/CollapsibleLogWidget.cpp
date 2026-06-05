@@ -65,7 +65,8 @@ void CollapsibleLogWidget::applyStyleSheet()
 {
     QFile styleFile(":/log_widget_style.qss");
     
-    if (!styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    if (!styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) 
+    {
         return;
     }
 
@@ -103,7 +104,8 @@ void CollapsibleLogWidget::customContextMenuRequested(const QPoint& pos)
     
     // Copy Action
     QAction* copyAction = contextMenu.addAction("Copy Log");
-    connect(copyAction, &QAction::triggered, [this]() {
+    connect(copyAction, &QAction::triggered, [this]() 
+    {
         m_logText->selectAll();
         m_logText->copy();
     });

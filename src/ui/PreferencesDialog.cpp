@@ -21,7 +21,7 @@ PreferencesDialog::PreferencesDialog(const UserPreferences& initial, QWidget* pa
     // First preference: toggle the camera axis-overlay gizmo.
     m_showAxisOverlayCheck = new QCheckBox(this);
     m_showAxisOverlayCheck->setChecked(initial.showAxisOverlay);
-    m_form->addRow(tr("Show camera axis overlay"), m_showAxisOverlayCheck);
+    m_form->addRow(tr("Show Axis Overlay"), m_showAxisOverlayCheck);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
                                          Qt::Horizontal, this);

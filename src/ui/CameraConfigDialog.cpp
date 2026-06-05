@@ -14,12 +14,6 @@
 namespace vitrine
 {
 
-namespace
-{
-// Generous world-space bounds for position / look-at / up components.
-constexpr double kPosRange = 1.0e6;
-} // namespace
-
 CameraConfigDialog::CameraConfigDialog(const CameraConfig& initial, QWidget* parent)
     : QDialog(parent)
 {
@@ -35,15 +29,15 @@ CameraConfigDialog::CameraConfigDialog(const CameraConfig& initial, QWidget* par
     m_typeCombo->addItem(tr("Perspective"), static_cast<int>(CameraType::Perspective));
     m_typeCombo->addItem(tr("Orthographic"), static_cast<int>(CameraType::Orthographic));
     m_typeCombo->setCurrentIndex(initial.type == CameraType::Orthographic ? 1 : 0);
-    m_form->addRow(tr("Type"), m_typeCombo);
+    m_form->addRow(tr("Type: "), m_typeCombo);
 
     // View vectors.
     m_eyeEditor = makeVec3Editor(initial.eye, this);
     m_centerEditor = makeVec3Editor(initial.center, this);
     m_upEditor = makeVec3Editor(initial.up, this);
-    m_form->addRow(tr("Position"), m_eyeEditor.spins[0]->parentWidget());
-    m_form->addRow(tr("Look At"), m_centerEditor.spins[0]->parentWidget());
-    m_form->addRow(tr("Up"), m_upEditor.spins[0]->parentWidget());
+    m_form->addRow(tr("Position: "), m_eyeEditor.spins[0]->parentWidget());
+    m_form->addRow(tr("Look At: "), m_centerEditor.spins[0]->parentWidget());
+    m_form->addRow(tr("Up: "), m_upEditor.spins[0]->parentWidget());
 
     // Clip planes.
     m_nearSpin = new QDoubleSpinBox(this);
@@ -51,14 +45,14 @@ CameraConfigDialog::CameraConfigDialog(const CameraConfig& initial, QWidget* par
     m_nearSpin->setRange(1.0e-4, kPosRange);
     m_nearSpin->setSingleStep(0.01);
     m_nearSpin->setValue(initial.nearClip);
-    m_form->addRow(tr("Near"), m_nearSpin);
+    m_form->addRow(tr("Near: "), m_nearSpin);
 
     m_farSpin = new QDoubleSpinBox(this);
     m_farSpin->setDecimals(2);
     m_farSpin->setRange(1.0e-3, kPosRange);
     m_farSpin->setSingleStep(1.0);
     m_farSpin->setValue(initial.farClip);
-    m_form->addRow(tr("Far"), m_farSpin);
+    m_form->addRow(tr("Far: "), m_farSpin);
 
     // Perspective-only: vertical field of view (degrees).
     m_fovYSpin = new QDoubleSpinBox(this);
@@ -67,7 +61,7 @@ CameraConfigDialog::CameraConfigDialog(const CameraConfig& initial, QWidget* par
     m_fovYSpin->setSingleStep(1.0);
     m_fovYSpin->setSuffix(QStringLiteral("°"));
     m_fovYSpin->setValue(initial.fovYDegrees);
-    m_form->addRow(tr("Field of View"), m_fovYSpin);
+    m_form->addRow(tr("Field of View: "), m_fovYSpin);
 
     // Orthographic-only: image-plane height (world units).
     m_heightSpin = new QDoubleSpinBox(this);
@@ -75,7 +69,7 @@ CameraConfigDialog::CameraConfigDialog(const CameraConfig& initial, QWidget* par
     m_heightSpin->setRange(1.0e-4, kPosRange);
     m_heightSpin->setSingleStep(0.1);
     m_heightSpin->setValue(initial.height);
-    m_form->addRow(tr("Height"), m_heightSpin);
+    m_form->addRow(tr("Height: "), m_heightSpin);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
                                          Qt::Horizontal, this);
@@ -99,7 +93,8 @@ CameraConfigDialog::Vec3Editor CameraConfigDialog::makeVec3Editor(const glm::vec
     constexpr std::array<const char*, 3> kAxisLabels{"x", "y", "z"};
 
     Vec3Editor editor;
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < 3; ++i) 
+    {
         hbox->addWidget(new QLabel(QString::fromLatin1(kAxisLabels[i]), container));
 
         auto* spin = new QDoubleSpinBox(container);
