@@ -267,7 +267,10 @@ QWidget* AnariBackendDialog::makeWidgetForParameter(const AnariRendererParameter
     const auto name = p.getName();
 
     // Ignore ANARI metadata and handle-like types that cannot be edited here.
-    if (type < ANARI_INT8)
+    if (type < ANARI_INT8 && 
+        type != ANARI_STRING && 
+        type != ANARI_STRING_LIST &&
+        type != ANARI_BOOL)
     {
         return nullptr;
     }
@@ -361,6 +364,7 @@ QWidget* AnariBackendDialog::makeWidgetForParameter(const AnariRendererParameter
                 return edit;
             }
         }
+        // TODO: case ANARI_STRING_LIST
         default: 
         {
             auto* label = new QLabel(tr("(unsupported type %1 for \"%2\")")
