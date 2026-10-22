@@ -10,8 +10,9 @@ std::unique_ptr<DataLoader> DataLoaderFactory::createLoader(const QString& fileP
 {
     const QString suffix = QFileInfo(filePath).suffix().toLower();
 
-    if (suffix == QStringLiteral("obj")) {
-        return std::make_unique<ObjDataLoader>();
+    if (suffix == QStringLiteral("obj")) 
+    {
+        return std::make_unique<ObjDataLoader>(filePath);
     }
 
     return nullptr;

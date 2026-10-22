@@ -1,6 +1,7 @@
 #include "Camera.h"
 
 #include <glm/gtc/constants.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
 #include <algorithm>
@@ -49,6 +50,11 @@ QVector3D Camera::forward() const
 {
     const glm::vec3 v = forwardVec();
     return QVector3D(v.x, v.y, v.z);
+}
+
+glm::mat4 Camera::viewMatrix() const
+{
+    return glm::lookAt(m_eye, m_center, trueUpVec());
 }
 
 void Camera::setLookAt(const glm::vec3& eye, const glm::vec3& center, const glm::vec3& up)

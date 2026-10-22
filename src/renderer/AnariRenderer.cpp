@@ -7,6 +7,11 @@
 #include <QDebug>
 #include <QTimer>
 
+#include <glm/gtc/type_ptr.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstring>
 #include <memory>
 
@@ -129,6 +134,7 @@ void AnariRenderer::loadBackend(const QString& libraryName, const QString& devic
         anariCommitParameters(m_device, m_anariScene.world);
     }
 
+    rebuildLights();
     rebuildFrame();
 
     emitStatus(LogLevel::Info,
@@ -361,7 +367,118 @@ void AnariRenderer::loadSceneFromFile(const QString& path)
     }
     m_anariScene.releaseContent(m_device);
 
-    loader->loadSceneFromFile(m_device, m_anariScene, path);
+    loader->load(m_device, m_anariScene);
+
+    // Loaders only touch "surface"/"instance", but re-assert the lights so the
+    // world is guaranteed to be lit regardless of what a loader did.
+    rebuildLights();
+}
+
+void AnariRenderer::setLightConfigs(const std::vector<LightConfig>& lights)
+{
+    m_lightConfigs = lights;
+    rebuildLights();
+}
+
+void AnariRenderer::rebuildLights()
+{
+    if (!m_device || !m_anariScene.world) 
+    {
+        return;
+    }
+
+    // The backend may still be reading the old lights.
+    if (m_anariScene.frame && m_frameInFlight) 
+    {
+        anariFrameReady(m_device, m_anariScene.frame, ANARI_WAIT);
+        m_frameInFlight = false;
+    }
+
+    anariUnsetParameter(m_device, m_anariScene.world, "light");
+    for (ANARILight light : m_anariScene.lights) 
+    {
+        anariRelease(m_device, light);
+    }
+    m_anariScene.lights.clear();
+
+    const auto toArray = [](const glm::vec3& v) { return std::array<float, 3>{v.x, v.y, v.z}; };
+    const auto unit = [](glm::vec3 v) {
+        const float len = glm::length(v);
+        return len > 1.0e-6f ? v / len : glm::vec3(0.0f, 0.0f, -1.0f);
+    };
+
+    size_t enabledCount = 0;
+    for (const LightConfig& cfg : m_lightConfigs) 
+    {
+        if (!cfg.enabled) 
+        {
+            continue;
+        }
+        
+        if (++enabledCount > kMaxLights) 
+        {
+            emitStatus(LogLevel::Warning,
+                       QStringLiteral("At most %1 lights are supported; extra lights ignored.")
+                           .arg(kMaxLights));
+            break;
+        }
+
+        const char* subtype = "directional";
+        if (cfg.type == LightType::Point) 
+        {
+            subtype = "point";
+        } 
+        else if (cfg.type == LightType::Spot) 
+        {
+            subtype = "spot";
+        }
+
+        ANARILight light = anariNewLight(m_device, subtype);
+        if (!light) 
+        {
+            emitStatus(LogLevel::Warning,
+                       QStringLiteral("Backend does not support \"%1\" lights.")
+                           .arg(QLatin1String(subtype)));
+            continue;
+        }
+
+        const auto color = toArray(cfg.color);
+        anariSetParameter(m_device, light, "color", ANARI_FLOAT32_VEC3, color.data());
+
+        if (cfg.type == LightType::Directional) 
+        {
+            const auto dir = toArray(unit(cfg.direction));
+            anariSetParameter(m_device, light, "direction", ANARI_FLOAT32_VEC3, dir.data());
+            anariSetParameter(m_device, light, "irradiance", ANARI_FLOAT32, &cfg.intensity);
+        } 
+        else 
+        {
+            const auto pos = toArray(cfg.position);
+            anariSetParameter(m_device, light, "position", ANARI_FLOAT32_VEC3, pos.data());
+            anariSetParameter(m_device, light, "intensity", ANARI_FLOAT32, &cfg.intensity);
+            if (cfg.type == LightType::Spot) 
+            {
+                const auto dir = toArray(unit(cfg.direction));
+                const float opening = glm::radians(cfg.openingAngleDegrees);
+                const float falloff = glm::radians(cfg.falloffAngleDegrees);
+                anariSetParameter(m_device, light, "direction", ANARI_FLOAT32_VEC3, dir.data());
+                anariSetParameter(m_device, light, "openingAngle", ANARI_FLOAT32, &opening);
+                anariSetParameter(m_device, light, "falloffAngle", ANARI_FLOAT32, &falloff);
+            }
+        }
+        anariCommitParameters(m_device, light);
+        m_anariScene.lights.push_back(light);
+    }
+
+    if (!m_anariScene.lights.empty()) 
+    {
+        ANARIArray1D lightArray = AnariUtils::makeManagedArray1D(
+            m_device, ANARI_LIGHT, m_anariScene.lights.data(), m_anariScene.lights.size(),
+            sizeof(ANARILight));
+        anariSetParameter(m_device, m_anariScene.world, "light", ANARI_ARRAY1D, &lightArray);
+        anariRelease(m_device, lightArray);
+    }
+    anariCommitParameters(m_device, m_anariScene.world);
 }
 
 void AnariRenderer::commitCamera()
@@ -372,6 +489,12 @@ void AnariRenderer::commitCamera()
     }
     m_camera->commit(m_device, m_anariScene.camera);
     emit cameraChanged(m_camera->right(), m_camera->upVector(), m_camera->forward());
+
+    // glm is column-major; QMatrix4x4(const float*) reads row-major.
+    const glm::mat4 vp = m_camera->projectionMatrix() * m_camera->viewMatrix();
+    const glm::vec3 c = m_camera->center();
+    emit cameraMatricesChanged(QMatrix4x4(glm::value_ptr(vp)).transposed(),
+                               QVector3D(c.x, c.y, c.z), m_camera->distance());
 }
 
 void AnariRenderer::orbitCamera(const QPointF& deltaPixels)

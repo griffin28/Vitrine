@@ -57,6 +57,14 @@ public:
     /// @param config camera configuration containing view and projection state
     void applyConfig(const CameraConfig& config);
 
+    /// @brief Get the world-to-camera view matrix
+    /// @return right-handed look-at view matrix
+    glm::mat4 viewMatrix() const;
+
+    /// @brief Get the camera-to-clip projection matrix (OpenGL conventions)
+    /// @return projection matrix for the current aspect and clip planes
+    virtual glm::mat4 projectionMatrix() const = 0;
+
     /// @brief Orbit the eye around the center
     /// @param yawRadians yaw angle in radians
     /// @param pitchRadians pitch angle in radians

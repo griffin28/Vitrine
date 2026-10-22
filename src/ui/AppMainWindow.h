@@ -5,8 +5,11 @@
 #include <QStyle>
 #include <QVector>
 
-#include "AnariBackendDialog.h"
+#include <vector>
+
+#include "dialogs/AnariBackendDialog.h"
 #include "CameraConfig.h"
+#include "LightConfig.h"
 #include "CollapsibleLogWidget.h"
 #include "UserPreferences.h"
 
@@ -23,6 +26,7 @@ namespace vitrine
 class AnariFrameWidget;
 class AnariRenderer;
 class SceneAxisOverlay;
+class LightGizmoOverlay;
 
 /// @class AppMainWindow
 /// @brief Main application window.
@@ -87,6 +91,9 @@ public:
     /// @brief QSettings group for persisted user preferences
     static constexpr const char* KPREFS = "preferences";
 
+    /// @brief QSettings group for persisted light configurations
+    static constexpr const char* KLIGHTS = "lights";
+
 private slots:
     /// @brief Prompt the user for a scene file and load it into the renderer
     void openFile();
@@ -102,6 +109,9 @@ private slots:
 
     /// @brief Show the camera options dialog
     void showCameraOptionsDialog();
+
+    /// @brief Show the light options dialog
+    void showLightOptionsDialog();
 
     /// @brief Forward renderer status messages to the log panel
     /// @param level log level emitted by the renderer
@@ -128,21 +138,25 @@ private slots:
     /// @param config selected camera configuration
     void onCameraConfigChanged(const CameraConfig& config);
 
+    /// @brief Apply light configurations selected in the light dialog
+    /// @param lights selected light configurations
+    void onLightConfigsChanged(const std::vector<LightConfig>& lights);
+
     /// @brief Apply user preferences selected in the preferences dialog
     /// @param preferences selected user preferences
     void onPreferencesChanged(const UserPreferences& preferences);
 
 private:
-    /// @brief Load persisted backend, camera, and preference settings
+    /// @brief Load persisted backend, camera, lights and preference settings
     void loadSettings();
 
-    /// @brief Save backend, camera, and preference settings
+    /// @brief Save backend, camera, lights and preference settings
     void saveSettings();
 
-    /// @brief Create the central frame, axis overlay, and log widgets
+    /// @brief Create the central frame, axis overlay, light overlay and log widgets
     void createCentralWidget();
 
-    /// @brief Create the renderer and connect frame/camera signals
+    /// @brief Create the renderer and connect frame/camera/light signals
     void createRenderer();
 
     /// @brief Create the actions used by the application menus
@@ -193,6 +207,7 @@ private:
     QString m_anariRendererSubtype{QStringLiteral("default")};
     QVector<AnariBackendDialog::ParamValue> m_rendererParameters;
     CameraConfig m_cameraConfig;
+    std::vector<LightConfig> m_lightConfigs{defaultLightConfigs()};
     UserPreferences m_preferences;
 
     // Renderer lives on the GUI thread — many ANARI backends embed
@@ -205,6 +220,7 @@ private:
     QVBoxLayout* m_mainLayout = nullptr;
     AnariFrameWidget* m_frameWidget = nullptr;
     SceneAxisOverlay* m_axisOverlay = nullptr;
+    LightGizmoOverlay* m_lightOverlay = nullptr;
     CollapsibleLogWidget* m_logWidget = nullptr;
 
     QMenu* m_fileMenu = nullptr;
@@ -219,6 +235,7 @@ private:
     QAction* m_preferencesAction = nullptr;
     QAction* m_renderingOptionsAction = nullptr;
     QAction* m_cameraOptionsAction = nullptr;
+    QAction* m_lightOptionsAction = nullptr;
 };
 
 } // namespace vitrine

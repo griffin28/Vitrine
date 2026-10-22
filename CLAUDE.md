@@ -94,12 +94,16 @@ Module layout (each is an OBJECT library linked into the `Vitrine` executable):
   `anariMapArray`/memcpy/`anariUnmapArray`), so their CPU-side buffers don't
   need to outlive the geometry.
 - **`src/ui/`** — `AnariFrameWidget` (plain `QWidget` that blits the latest
-  `QImage`), `AnariBackendDialog` (modal dialog for picking the ANARI
-  backend library / device subtype / renderer subtype and editing
-  introspected renderer parameters), `AppMainWindow` (shell: menus,
-  settings, owns the renderer thread, embeds the frame widget + log
-  widget), and `CollapsibleLogWidget` (in-app log panel that receives
-  ANARI status messages).
+  `QImage`), `AppMainWindow` (shell: menus, settings, owns the renderer
+  thread, embeds the frame widget + log widget), and `CollapsibleLogWidget`
+  (in-app log panel that receives ANARI status messages). Two subdirectories
+  (same `ui` OBJECT library, included as `dialogs/X.h` / `overlays/X.h`):
+  - **`dialogs/`** — `AnariBackendDialog` (modal dialog for picking the ANARI
+    backend library / device subtype / renderer subtype and editing
+    introspected renderer parameters), `CameraConfigDialog`,
+    `LightConfigDialog`, `PreferencesDialog`.
+  - **`overlays/`** — transparent widgets drawn over the frame:
+    `SceneAxisOverlay`, `LightGizmoOverlay`.
 - **`src/textures/`** — Single-asset module (currently the Viking Room
   texture) with a `texture_cpy` custom target the executable depends on.
   `ObjDataLoader` loads `textures/viking_room.png` at runtime (relative to the
@@ -109,6 +113,20 @@ Module layout (each is an OBJECT library linked into the `Vitrine` executable):
   via **File → Open File...**.
 - **`src/resources/`** — Qt `.qrc` resources: app icons under `images/`, and
   the embedded qdarkstyle stylesheets (dark + light) compiled in via AUTORCC.
+
+### Lights
+
+Scene lights are renderer-level state, not loader output.
+`src/renderer/LightConfig.h` defines `LightConfig` (directional / point / spot);
+`AnariRenderer::setLightConfigs` → `rebuildLights()` creates the ANARI lights
+and sets the world's `light` array (re-asserted after every
+`loadSceneFromFile`). Phenocryst has no headlight, so the default config is a
+single directional light. `Anari → Lights...` opens `LightConfigDialog`; the
+list persists under `AppMainWindow/anari/lights` (array) in `QSettings`.
+`LightGizmoOverlay` (child of the frame widget, toggled by Preferences →
+Show Light Gizmos) draws each light using `AnariRenderer::cameraMatricesChanged`.
+`ObjDataLoader` creates one `phong` material per (shape, .mtl material) from
+`Kd`/`Ks`/`Ns`, falling back to `matte` if the backend lacks `phong`.
 
 ### Important cross-cutting details
 

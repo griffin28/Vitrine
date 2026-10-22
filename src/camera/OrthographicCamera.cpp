@@ -1,7 +1,16 @@
 #include "OrthographicCamera.h"
 
+#include <glm/gtc/matrix_transform.hpp>
+
 namespace vitrine
 {
+
+glm::mat4 OrthographicCamera::projectionMatrix() const
+{
+    const float halfH = 0.5f * m_height;
+    const float halfW = halfH * m_aspect;
+    return glm::ortho(-halfW, halfW, -halfH, halfH, m_near, m_far);
+}
 
 void OrthographicCamera::applyProjection(ANARIDevice device, ANARICamera camera) const
 {

@@ -47,6 +47,7 @@ private slots:
 private:
     QFormLayout* m_form{nullptr};
     QCheckBox* m_showAxisOverlayCheck{nullptr};
+    QCheckBox* m_showLightGizmosCheck{nullptr};
 };
 
 } // namespace vitrine

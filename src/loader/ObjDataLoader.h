@@ -13,11 +13,10 @@ class ObjDataLoader : public DataLoader
     Q_OBJECT
 
 public:
-    explicit ObjDataLoader(QObject* parent = nullptr) : DataLoader(parent) {}
+    explicit ObjDataLoader(const QString& filePath, QObject* parent = nullptr) 
+        : DataLoader(filePath, parent) {}
 
-    bool loadSceneFromFile(ANARIDevice device,
-                           AnariScene& anariScene,
-                           const QString& filePath) override;
+    bool load(ANARIDevice device, AnariScene& anariScene) override;
 };
 
 } // namespace vitrine

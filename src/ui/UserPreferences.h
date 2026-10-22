@@ -11,6 +11,9 @@ struct UserPreferences
 {
     /// @brief Whether the camera axis-overlay gizmo is shown over the frame.
     bool showAxisOverlay{true};
+
+    /// @brief Whether light gizmos (position / direction / cone) are drawn over the frame.
+    bool showLightGizmos{true};
 };
 
 } // namespace vitrine

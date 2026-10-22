@@ -10,39 +10,30 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFileInfo>
 #include <QString>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <unordered_map>
 #include <vector>
 
+#include "AnariUtils.h" // makeManagedArray1D
 #include "AppUtils.h" // Vertex struct + std::hash<Vertex>
+
 
 namespace vitrine
 {
 
+using AnariUtils::makeManagedArray1D;
+
 namespace
 {
 
-// Create a device-managed ANARI array and copy `count` elements of `elemSize`
-// bytes into it. Unlike the shared (app-memory) form, this owns its storage,
-// so the caller's buffers do not need to outlive the array / geometry.
-ANARIArray1D makeManagedArray1D(ANARIDevice device, ANARIDataType type,
-                                const void* data, size_t count, size_t elemSize)
-{
-    ANARIArray1D array = anariNewArray1D(device, nullptr, nullptr, nullptr, type, count);
-    if (array && count > 0) {
-        if (void* mapped = anariMapArray(device, array)) {
-            std::memcpy(mapped, data, count * elemSize);
-        }
-        anariUnmapArray(device, array);
-    }
-    return array;
-}
-
-// 2D analogue of makeManagedArray1D: copies width*height elements of `elemSize`
+// 2D analogue of AnariUtils::makeManagedArray1D: copies width*height elements of `elemSize`
 // bytes into a device-managed array (used to back image samplers).
 ANARIArray2D makeManagedArray2D(ANARIDevice device, ANARIDataType type,
                                 const void* data, size_t width, size_t height,
@@ -60,9 +51,7 @@ ANARIArray2D makeManagedArray2D(ANARIDevice device, ANARIDataType type,
 
 } // namespace
 
-bool ObjDataLoader::loadSceneFromFile(ANARIDevice device,
-                                      AnariScene& scene,
-                                      const QString& filePath)
+bool ObjDataLoader::load(ANARIDevice device, AnariScene& scene)
 {
     if (!device || !scene.world) {
         return false;
@@ -74,10 +63,14 @@ bool ObjDataLoader::loadSceneFromFile(ANARIDevice device,
     std::vector<tinyobj::material_t> materials;
     std::string warn;
     std::string err;
-    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filePath.toStdString().c_str())) {
+    // The .mtl is resolved relative to the OBJ, not the working directory.
+    const std::string mtlBaseDir =
+        (QFileInfo(m_filePath).absolutePath() + QLatin1Char('/')).toStdString();
+    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                          m_filePath.toStdString().c_str(), mtlBaseDir.c_str())) {
         emitStatus(LogLevel::Warning,
                QStringLiteral("Failed to load OBJ '%1': %2 %3")
-                   .arg(filePath, QString::fromStdString(warn), QString::fromStdString(err)));
+                   .arg(m_filePath, QString::fromStdString(warn), QString::fromStdString(err)));
         return false;
     }
 
@@ -127,14 +120,38 @@ bool ObjDataLoader::loadSceneFromFile(ANARIDevice device,
     // Build a surface per shape: dedup that shape's vertices, create its own
     // triangle geometry + matte material, and gather the surface into the
     // scene.
+    // A shape may use several .mtl materials (one per face), so each
+    // (shape, material) bucket becomes its own surface.
+    struct Bucket 
+    {
+        int materialId;
+        std::vector<tinyobj::index_t> indices;
+    };
+    // Iterate over all shapes in the OBJ file
     for (const auto& shape : shapes) {
+        std::vector<Bucket> buckets;
+        const size_t faceCount = shape.mesh.indices.size() / 3;
+        for (size_t f = 0; f < faceCount; ++f) {
+            const int matId = f < shape.mesh.material_ids.size() ? shape.mesh.material_ids[f] : -1;
+            auto it = std::find_if(buckets.begin(), buckets.end(),
+                                   [matId](const Bucket& b) { return b.materialId == matId; });
+            if (it == buckets.end()) {
+                buckets.push_back({matId, {}});
+                it = std::prev(buckets.end());
+            }
+            it->indices.insert(it->indices.end(),
+                               shape.mesh.indices.begin() + 3 * f,
+                               shape.mesh.indices.begin() + 3 * f + 3);
+        }
+
+      for (const auto& bucket : buckets) {
         std::unordered_map<Vertex, uint32_t> uniqueVertices;
         std::vector<Vertex> verts;
         std::vector<uint32_t> idx;
         bool useTexCoords = false;
         bool useVertexNormals = false;
 
-        for (const auto& index : shape.mesh.indices) {
+        for (const auto& index : bucket.indices) {
             Vertex v{};
             // Vertex position
             v.pos = {attrib.vertices[3 * index.vertex_index + 0],
@@ -239,10 +256,36 @@ bool ObjDataLoader::loadSceneFromFile(ANARIDevice device,
         anariRelease(device, indexArray);
         anariCommitParameters(device, geometry);
 
-        ANARIMaterial material = anariNewMaterial(device, "matte");
-        if (material) {
+        // Blinn-Phong material from the .mtl entry (Kd/Ks/Ns); faces without
+        // a material get modest defaults. Fall back to matte on backends that
+        // lack "phong".
+        std::array<float, 3> kd{0.8f, 0.8f, 0.8f};
+        std::array<float, 3> ks{0.3f, 0.3f, 0.3f};
+        float shininess = 32.0f;
+        if (bucket.materialId >= 0 && static_cast<size_t>(bucket.materialId) < materials.size()) 
+        {
+            const auto& m = materials[bucket.materialId];
+            kd = {m.diffuse[0], m.diffuse[1], m.diffuse[2]};
+            ks = {m.specular[0], m.specular[1], m.specular[2]};
+            shininess = std::max(1.0f, m.shininess);
+        }
+
+        ANARIMaterial material = anariNewMaterial(device, "phong");
+        const bool phong = material != nullptr;
+        if (!phong) 
+        {
+            material = anariNewMaterial(device, "matte");
+        }
+        if (material) 
+        {
             if (sampler) {
                 anariSetParameter(device, material, "color", ANARI_SAMPLER, &sampler);
+            } else {
+                anariSetParameter(device, material, "color", ANARI_FLOAT32_VEC3, kd.data());
+            }
+            if (phong) {
+                anariSetParameter(device, material, "specular", ANARI_FLOAT32_VEC3, ks.data());
+                anariSetParameter(device, material, "shininess", ANARI_FLOAT32, &shininess);
             }
             anariCommitParameters(device, material);
         }
@@ -271,6 +314,7 @@ bool ObjDataLoader::loadSceneFromFile(ANARIDevice device,
         scene.surfaces.push_back(surface);
         totalVerts += verts.size();
         totalTris += indices.size();
+      }
     }
 
     // Each material that bound the sampler holds its own reference now, so drop
@@ -281,7 +325,7 @@ bool ObjDataLoader::loadSceneFromFile(ANARIDevice device,
 
     if (scene.surfaces.empty()) {
         emitStatus(LogLevel::Warning,
-               QStringLiteral("OBJ '%1' produced no triangles.").arg(filePath));
+               QStringLiteral("OBJ '%1' produced no triangles.").arg(m_filePath));
         // Clear the world's instance list so any prior scene is gone.
         anariUnsetParameter(device, scene.world, "instance");
         anariCommitParameters(device, scene.world);
@@ -318,7 +362,7 @@ bool ObjDataLoader::loadSceneFromFile(ANARIDevice device,
 
     emitStatus(LogLevel::Info,
            QStringLiteral("Loaded OBJ '%1' (%2 surfaces, %3 verts, %4 tris).")
-               .arg(filePath)
+               .arg(m_filePath)
                .arg(scene.surfaces.size())
                .arg(totalVerts)
                .arg(totalTris));

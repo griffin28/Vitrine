@@ -23,6 +23,10 @@ PreferencesDialog::PreferencesDialog(const UserPreferences& initial, QWidget* pa
     m_showAxisOverlayCheck->setChecked(initial.showAxisOverlay);
     m_form->addRow(tr("Show Axis Overlay"), m_showAxisOverlayCheck);
 
+    m_showLightGizmosCheck = new QCheckBox(this);
+    m_showLightGizmosCheck->setChecked(initial.showLightGizmos);
+    m_form->addRow(tr("Show Light Gizmos"), m_showLightGizmosCheck);
+
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
                                          Qt::Horizontal, this);
     mainLayout->addWidget(buttons);
@@ -34,6 +38,7 @@ UserPreferences PreferencesDialog::preferences() const
 {
     UserPreferences prefs;
     prefs.showAxisOverlay = m_showAxisOverlayCheck->isChecked();
+    prefs.showLightGizmos = m_showLightGizmosCheck->isChecked();
     return prefs;
 }
 

@@ -38,6 +38,10 @@ public:
     /// @param radians vertical field of view in radians
     void setFovY(float radians) { m_fovY = radians; }
 
+    /// @brief Get the perspective projection matrix
+    /// @return projection matrix built from fovY, aspect, and clip planes
+    glm::mat4 projectionMatrix() const override;
+
 protected:
     /// @brief Set perspective projection parameters on the ANARI camera
     /// @param device ANARI device that owns the camera

@@ -2,9 +2,11 @@
 
 #include "AnariFrameWidget.h"
 #include "AnariRenderer.h"
-#include "SceneAxisOverlay.h"
-#include "CameraConfigDialog.h"
-#include "PreferencesDialog.h"
+#include "overlays/SceneAxisOverlay.h"
+#include "dialogs/CameraConfigDialog.h"
+#include "dialogs/LightConfigDialog.h"
+#include "overlays/LightGizmoOverlay.h"
+#include "dialogs/PreferencesDialog.h"
 #include "DataLoaderFactory.h"
 
 #include <QAction>
@@ -118,9 +120,40 @@ void AppMainWindow::loadSettings()
     m_cameraConfig.height = settings.value("height", m_cameraConfig.height).toFloat();
     settings.endGroup();
 
+    // An explicitly saved empty list means "no lights"; only a missing array
+    // falls back to the default light.
+    if (settings.contains(QStringLiteral("%1/size").arg(KLIGHTS))) 
+    {
+        m_lightConfigs.clear();
+        const int lightCount = settings.beginReadArray(KLIGHTS);
+        for (int i = 0; i < lightCount; ++i) 
+        {
+            settings.setArrayIndex(i);
+            LightConfig l;
+            l.type = static_cast<LightType>(settings.value("type", 0).toInt());
+            l.enabled = settings.value("enabled", true).toBool();
+            l.color = {settings.value("colorR", 1.0).toFloat(),
+                       settings.value("colorG", 1.0).toFloat(),
+                       settings.value("colorB", 1.0).toFloat()};
+            l.position = {settings.value("posX", l.position.x).toFloat(),
+                          settings.value("posY", l.position.y).toFloat(),
+                          settings.value("posZ", l.position.z).toFloat()};
+            l.direction = {settings.value("dirX", l.direction.x).toFloat(),
+                           settings.value("dirY", l.direction.y).toFloat(),
+                           settings.value("dirZ", l.direction.z).toFloat()};
+            l.intensity = settings.value("intensity", l.intensity).toFloat();
+            l.openingAngleDegrees = settings.value("opening", l.openingAngleDegrees).toFloat();
+            l.falloffAngleDegrees = settings.value("falloff", l.falloffAngleDegrees).toFloat();
+            m_lightConfigs.push_back(l);
+        }
+        settings.endArray();
+    }
+
     settings.beginGroup(KPREFS);
     m_preferences.showAxisOverlay =
         settings.value("showAxisOverlay", m_preferences.showAxisOverlay).toBool();
+    m_preferences.showLightGizmos =
+        settings.value("showLightGizmos", m_preferences.showLightGizmos).toBool();
     settings.endGroup();
 
     settings.endGroup();
@@ -161,8 +194,31 @@ void AppMainWindow::saveSettings()
     settings.setValue("height", m_cameraConfig.height);
     settings.endGroup();
 
+    settings.beginWriteArray(KLIGHTS, static_cast<int>(m_lightConfigs.size()));
+    for (int i = 0; i < static_cast<int>(m_lightConfigs.size()); ++i) 
+    {
+        settings.setArrayIndex(i);
+        const LightConfig& l = m_lightConfigs[i];
+        settings.setValue("type", static_cast<int>(l.type));
+        settings.setValue("enabled", l.enabled);
+        settings.setValue("colorR", l.color.x);
+        settings.setValue("colorG", l.color.y);
+        settings.setValue("colorB", l.color.z);
+        settings.setValue("posX", l.position.x);
+        settings.setValue("posY", l.position.y);
+        settings.setValue("posZ", l.position.z);
+        settings.setValue("dirX", l.direction.x);
+        settings.setValue("dirY", l.direction.y);
+        settings.setValue("dirZ", l.direction.z);
+        settings.setValue("intensity", l.intensity);
+        settings.setValue("opening", l.openingAngleDegrees);
+        settings.setValue("falloff", l.falloffAngleDegrees);
+    }
+    settings.endArray();
+
     settings.beginGroup(KPREFS);
     settings.setValue("showAxisOverlay", m_preferences.showAxisOverlay);
+    settings.setValue("showLightGizmos", m_preferences.showLightGizmos);
     settings.endGroup();
 
     settings.endGroup();
@@ -183,6 +239,11 @@ void AppMainWindow::createCentralWidget()
     // the image; we reposition it whenever the frame widget resizes.
     m_axisOverlay = new SceneAxisOverlay(m_frameWidget);
     m_axisOverlay->show();
+
+    // Light gizmos cover the whole frame; resized/raised with the frame widget.
+    m_lightOverlay = new LightGizmoOverlay(m_frameWidget);
+    m_lightOverlay->setLights(m_lightConfigs);
+    m_lightOverlay->show();
 
     m_logWidget = new CollapsibleLogWidget(tr("Log"), kDefaultLogHeight, m_centralWidget);
     m_mainLayout->addWidget(m_logWidget, 0);
@@ -213,10 +274,17 @@ void AppMainWindow::createRenderer()
             m_renderer, &AnariRenderer::dollyCamera);
     connect(m_renderer, &AnariRenderer::cameraChanged,
             m_axisOverlay, &SceneAxisOverlay::setBasis);
+    connect(m_renderer, &AnariRenderer::cameraMatricesChanged,
+            m_lightOverlay, &LightGizmoOverlay::setCamera);
 
     // Keep the gizmo pinned to the frame widget's bottom-left corner.
     connect(m_frameWidget, &AnariFrameWidget::resized,
             this, [this](const QSize& size) {
+                if (m_lightOverlay) 
+                {
+                    m_lightOverlay->setGeometry(QRect(QPoint(0, 0), size));
+                    m_lightOverlay->raise();
+                }
                 if (m_axisOverlay) 
                 {
                     constexpr int margin = 8;
@@ -245,6 +313,9 @@ void AppMainWindow::onBackendLoaded(bool ok, const QString& libraryName, const Q
 
     m_renderer->setRendererSubtype(m_anariRendererSubtype);
     applyParameters(m_rendererParameters);
+
+    // Push the persisted lights before the first frame is rendered.
+    m_renderer->setLightConfigs(m_lightConfigs);
 
     // Apply the persisted camera now that the ANARI camera handle exists.
     m_renderer->setCameraConfig(m_cameraConfig);
@@ -333,6 +404,11 @@ void AppMainWindow::createActions()
         menuIcon(QString(), QStringLiteral("camera-photo"), QStyle::SP_FileDialogContentsView),
         tr("&Camera..."), this);
     connect(m_cameraOptionsAction, &QAction::triggered, this, &AppMainWindow::showCameraOptionsDialog);
+
+    m_lightOptionsAction = new QAction(
+        menuIcon(QString(), QStringLiteral("weather-clear"), QStyle::SP_MessageBoxInformation),
+        tr("&Lights..."), this);
+    connect(m_lightOptionsAction, &QAction::triggered, this, &AppMainWindow::showLightOptionsDialog);
 }
 
 void AppMainWindow::createFileMenu()
@@ -361,6 +437,7 @@ void AppMainWindow::createOptionsMenu()
     m_optionsMenu = menuBar()->addMenu(tr("&Anari"));
     m_optionsMenu->addAction(m_renderingOptionsAction);
     m_optionsMenu->addAction(m_cameraOptionsAction);
+    m_optionsMenu->addAction(m_lightOptionsAction);
 }
 
 void AppMainWindow::openFile()
@@ -409,13 +486,17 @@ void AppMainWindow::onBackendDialogConfigurationChanged(const QString& library,
     m_anariRendererSubtype = rendererSubtype;
     m_rendererParameters = parameters;
 
-    if (libraryChanged) {
+    if (libraryChanged) 
+    {
         // Reload the backend; onBackendLoaded re-applies renderer subtype +
         // parameters + scene once it's ready.
         m_renderer->stop();
         m_renderer->loadBackend(m_anariLibrary, m_anariDeviceSubtype);
-    } else {
-        if (rendererChanged) {
+    } 
+    else 
+    {
+        if (rendererChanged) 
+        {
             m_renderer->setRendererSubtype(m_anariRendererSubtype);
         }
         applyParameters(m_rendererParameters);
@@ -440,6 +521,22 @@ void AppMainWindow::onCameraConfigChanged(const CameraConfig& config)
     saveSettings();
 }
 
+void AppMainWindow::showLightOptionsDialog()
+{
+    LightConfigDialog dialog(m_lightConfigs, this);
+    connect(&dialog, &LightConfigDialog::lightConfigsChanged,
+            this, &AppMainWindow::onLightConfigsChanged);
+    dialog.exec();
+}
+
+void AppMainWindow::onLightConfigsChanged(const std::vector<LightConfig>& lights)
+{
+    m_lightConfigs = lights;
+    m_renderer->setLightConfigs(lights);
+    m_lightOverlay->setLights(lights);
+    saveSettings();
+}
+
 void AppMainWindow::showPreferencesDialog()
 {
     PreferencesDialog dialog(m_preferences, this);
@@ -459,6 +556,9 @@ void AppMainWindow::applyPreferences()
 {
     if (m_axisOverlay) {
         m_axisOverlay->setVisible(m_preferences.showAxisOverlay);
+    }
+    if (m_lightOverlay) {
+        m_lightOverlay->setVisible(m_preferences.showLightGizmos);
     }
 }
 

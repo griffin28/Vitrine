@@ -21,17 +21,16 @@ class DataLoader : public QObject
     Q_OBJECT
 
 public:
-    explicit DataLoader(QObject* parent = nullptr) : QObject(parent) {}
+    explicit DataLoader(const QString& filePath, QObject* parent = nullptr) 
+        : QObject(parent)
+        , m_filePath(filePath) {}
     ~DataLoader() override = default;
 
-    /// @brief Parse `filePath` and populate `anariScene` (surfaces / groups /
-    ///        instances) on `device`, attaching the result to the scene world.
-    ///        The caller is responsible for clearing any prior scene content
-    ///        and for draining in-flight frames before calling this.
+    /// @brief Load the scene from the file into the ANARI scene.
+    /// @param device The ANARI device to use.
+    /// @param anariScene The ANARI scene to load the scene into.
     /// @return true if at least one renderable surface was produced.
-    virtual bool loadSceneFromFile(ANARIDevice device,
-                                   AnariScene& anariScene,
-                                   const QString& filePath) = 0;
+    virtual bool load(ANARIDevice device, AnariScene& anariScene) = 0;
 
 signals:
     /// @brief Emitted with a LogLevel (as int) and a human-readable message.
@@ -44,6 +43,8 @@ protected:
     {
         emit statusMessage(static_cast<int>(level), message);
     }
+
+    QString m_filePath;
 };
 
 } // namespace vitrine

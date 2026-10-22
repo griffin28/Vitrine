@@ -5,15 +5,19 @@ set(UI_SRCS
     AppMainWindow.cpp
     AnariFrameWidget.h
     AnariFrameWidget.cpp
-    AnariBackendDialog.h
-    AnariBackendDialog.cpp
-    SceneAxisOverlay.h
-    SceneAxisOverlay.cpp
-    CameraConfigDialog.h
-    CameraConfigDialog.cpp
+    dialogs/AnariBackendDialog.h
+    dialogs/AnariBackendDialog.cpp
+    overlays/SceneAxisOverlay.h
+    overlays/SceneAxisOverlay.cpp
+    dialogs/CameraConfigDialog.h
+    dialogs/CameraConfigDialog.cpp
+    dialogs/LightConfigDialog.h
+    dialogs/LightConfigDialog.cpp
+    overlays/LightGizmoOverlay.h
+    overlays/LightGizmoOverlay.cpp
     UserPreferences.h
-    PreferencesDialog.h
-    PreferencesDialog.cpp
+    dialogs/PreferencesDialog.h
+    dialogs/PreferencesDialog.cpp
 )
 
 add_library(ui OBJECT ${UI_SRCS})

@@ -36,6 +36,10 @@ public:
     /// @param h orthographic height in world units
     void setHeight(float h) { m_height = h; }
 
+    /// @brief Get the orthographic projection matrix
+    /// @return projection matrix built from height, aspect, and clip planes
+    glm::mat4 projectionMatrix() const override;
+
 protected:
     /// @brief Set orthographic projection parameters on the ANARI camera
     /// @param device ANARI device that owns the camera

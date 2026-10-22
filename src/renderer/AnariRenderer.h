@@ -9,6 +9,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVariant>
+#include <QMatrix4x4>
 #include <QVector3D>
 
 #include <memory>
@@ -16,6 +17,7 @@
 
 #include "AnariUtils.h"
 #include "Camera.h"
+#include "LightConfig.h"
 
 class QTimer;
 
@@ -142,6 +144,10 @@ public:
     /// @return camera configuration snapshot
     CameraConfig cameraConfig() const;
 
+    /// @brief Get the current light configuration
+    /// @return configured lights, including disabled ones
+    const std::vector<LightConfig>& lightConfigs() const { return m_lightConfigs; }
+
     /// @brief Destroy the current ANARI backend and release its handles
     void destroyBackend();
 
@@ -197,6 +203,10 @@ public slots:
     /// @param config camera configuration to apply
     void setCameraConfig(const CameraConfig& config);
 
+    /// @brief Replace the scene lights and push them to the backend
+    /// @param lights light configurations, disabled entries are kept but not sent
+    void setLightConfigs(const std::vector<LightConfig>& lights);
+
     /// @brief Begin or resume the render loop
     void start();
 
@@ -225,6 +235,14 @@ signals:
     /// @param forward camera forward basis vector from eye toward center
     void cameraChanged(const QVector3D& right, const QVector3D& up, const QVector3D& forward);
 
+    /// @brief Signal emitted when the camera view/projection changes
+    /// @param viewProjection world-to-clip matrix (OpenGL conventions)
+    /// @param center camera look-at center in world space
+    /// @param distance eye-to-center distance
+    void cameraMatricesChanged(const QMatrix4x4& viewProjection,
+                               const QVector3D& center,
+                               float distance);
+
 private slots:
     /// @brief Advance the timer-driven render loop
     void renderTick();
@@ -238,6 +256,10 @@ private:
     /// @param message status message text
     void emitStatus(LogLevel level, const QString& message);
 
+    /// @brief Rebuild the ANARI light objects from m_lightConfigs and attach
+    ///        them to the world's "light" array
+    void rebuildLights();
+
     /// @brief Commit camera state to ANARI and emit cameraChanged()
     void commitCamera();
 
@@ -247,6 +269,8 @@ private:
     ANARILibrary m_library{nullptr};
     ANARIDevice m_device{nullptr};
     AnariScene m_anariScene;
+
+    std::vector<LightConfig> m_lightConfigs{defaultLightConfigs()};
 
     QString m_libraryName;
     QString m_deviceSubtype;

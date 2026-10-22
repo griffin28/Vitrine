@@ -8,6 +8,8 @@
 #include <QProcessEnvironment>
 #include <QSet>
 
+#include <cstring>
+
 namespace vitrine
 {
 // AnariStatusSink
@@ -259,6 +261,25 @@ std::vector<AnariRendererParameter> enumerateRendererParameters(
         result.push_back(std::move(p));
     }
     return result;
+}
+
+
+ANARIArray1D makeManagedArray1D(ANARIDevice device,
+                                ANARIDataType type,
+                                const void* data,
+                                size_t count,
+                                size_t elemSize)
+{
+    ANARIArray1D array = anariNewArray1D(device, nullptr, nullptr, nullptr, type, count);
+    if (array && count > 0) 
+    {
+        if (void* mapped = anariMapArray(device, array)) 
+        {
+            std::memcpy(mapped, data, count * elemSize);
+        }
+        anariUnmapArray(device, array);
+    }
+    return array;
 }
 
 } // namespace AnariUtils

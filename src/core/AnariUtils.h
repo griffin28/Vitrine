@@ -8,6 +8,7 @@
 #include <QVariant>
 #include <QColor>
 
+#include <cstddef>
 #include <functional>
 #include <vector>
 
@@ -273,6 +274,19 @@ namespace AnariUtils
             anariSetParameter(device, renderer, nameUtf8.constData(), type, v.data());
         }
     }
+
+    /// @brief Create a device-managed 1D ANARI array and copy data into it
+    /// @param device ANARI device that owns the array
+    /// @param type ANARI element type
+    /// @param data source elements; copied, so it need not outlive the array
+    /// @param count number of elements
+    /// @param elemSize size of one element in bytes
+    /// @return new array handle (caller releases), or nullptr on failure
+    ANARIArray1D makeManagedArray1D(ANARIDevice device,
+                                    ANARIDataType type,
+                                    const void* data,
+                                    size_t count,
+                                    size_t elemSize);
 } // namespace AnariUtils
 
 } // namespace vitrine

@@ -1,6 +1,7 @@
 set(RENDERER_SRCS
     AnariRenderer.h
     AnariRenderer.cpp
+    LightConfig.h
 )
 
 add_library(renderer OBJECT ${RENDERER_SRCS})

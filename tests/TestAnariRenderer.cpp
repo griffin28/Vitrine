@@ -128,3 +128,52 @@ TEST(AnariRendererTest, EmitsFrameReadyOnMainThread)
         EXPECT_EQ(img.height(), 16);
     }
 }
+
+TEST(AnariRendererTest, AllLightTypesAttachAndFramesKeepFlowing)
+{
+    QAppHolder app;
+    qRegisterMetaType<QImage>("QImage");
+
+    AnariRenderer renderer;
+    QSignalSpy spy(&renderer, &AnariRenderer::frameReady);
+    QSignalSpy warnings(&renderer, &AnariRenderer::statusMessage);
+    renderer.resize(QSize(16, 16));
+    renderer.loadBackend(QStringLiteral("phenocryst"), QStringLiteral("default"));
+    renderer.start();
+
+    vitrine::LightConfig directional;
+    vitrine::LightConfig point;
+    point.type = vitrine::LightType::Point;
+    vitrine::LightConfig spot;
+    spot.type = vitrine::LightType::Spot;
+    vitrine::LightConfig disabled;
+    disabled.enabled = false;
+    renderer.setLightConfigs({directional, point, spot, disabled});
+    ASSERT_EQ(renderer.lightConfigs().size(), 4u);
+
+    ASSERT_TRUE(spy.wait(5000));
+    spy.clear();
+    EXPECT_TRUE(spy.wait(5000)) << "frames stopped after attaching lights";
+
+    // Clearing lights must also be accepted.
+    renderer.setLightConfigs({});
+    EXPECT_TRUE(spy.wait(5000));
+    renderer.stop();
+}
+
+TEST(AnariRendererTest, ExtraLightsBeyondLimitWarn)
+{
+    QAppHolder app;
+    AnariRenderer renderer;
+    QSignalSpy status(&renderer, &AnariRenderer::statusMessage);
+    renderer.resize(QSize(16, 16));
+    renderer.loadBackend(QStringLiteral("phenocryst"), QStringLiteral("default"));
+
+    status.clear();
+    renderer.setLightConfigs(std::vector<vitrine::LightConfig>(vitrine::kMaxLights + 1));
+    bool warned = false;
+    for (const auto& args : status) {
+        warned |= args.at(1).toString().contains(QStringLiteral("extra lights"));
+    }
+    EXPECT_TRUE(warned);
+}
