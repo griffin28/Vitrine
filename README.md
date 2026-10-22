@@ -1,5 +1,5 @@
 # Vitrine
-<img width="1053" height="937" alt="Vitrine GUI" src="https://github.com/user-attachments/assets/530dc3cc-7ee6-43fc-897a-144338db4f51" />
+<img width="1053" height="937" alt="Vitrine GUI" src="https://github.com/user-attachments/assets/5354cd4b-26a1-4bfb-84e1-3800d24655fb" />
 
 Very early stages of a Qt6 application that renders through an [ANARI](https://www.khronos.org/anari/) device. Primary use case (for now) is to assist with the development of [Phenocryst](https://github.com/KSG-Technology-Consulting/Phenocryst), an out-of-tree Vulkan-backed ANARI rendering device. The Qt side displays the ANARI framebuffer and exposes a runtime UI for selecting the backend library and editing its renderer parameters via ANARI introspection.
 
