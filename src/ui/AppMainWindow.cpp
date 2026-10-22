@@ -6,7 +6,6 @@
 #include "CameraConfigDialog.h"
 #include "PreferencesDialog.h"
 #include "DataLoaderFactory.h"
-#include "AnariUtils.h"
 
 #include <QAction>
 #include <QApplication>

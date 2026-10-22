@@ -276,7 +276,6 @@ QWidget* AnariBackendDialog::makeWidgetForParameter(const AnariRendererParameter
     }
 
     if ( (name.contains("background", Qt::CaseInsensitive) ||
-          name.contains("ambientRadiance", Qt::CaseInsensitive) ||
           name.contains("ambientColor", Qt::CaseInsensitive) ||
           name.contains("color", Qt::CaseInsensitive)) )
     {

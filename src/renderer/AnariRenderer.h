@@ -11,7 +11,6 @@
 #include <QVariant>
 #include <QVector3D>
 
-#include <array>
 #include <memory>
 #include <vector>
 

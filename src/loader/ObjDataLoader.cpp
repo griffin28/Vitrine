@@ -292,7 +292,7 @@ bool ObjDataLoader::loadSceneFromFile(ANARIDevice device,
     // ANARIGroup group = anariNewGroup(device);
     ANARIArray1D surfaceArray = makeManagedArray1D(
         device, ANARI_SURFACE, scene.surfaces.data(), scene.surfaces.size(),
-        sizeof(scene.surfaces[0]));
+        sizeof(&scene.surfaces[0]));
 
     anariSetParameter(device, scene.world, "surface", ANARI_ARRAY1D, &surfaceArray);
     anariRelease(device, surfaceArray);
