@@ -177,3 +177,25 @@ TEST(AnariRendererTest, ExtraLightsBeyondLimitWarn)
     }
     EXPECT_TRUE(warned);
 }
+
+TEST(AnariUtilsTest, HasExtensionIsCaseAndPrefixInsensitive)
+{
+    const QStringList exts{QStringLiteral("ANARI_KHR_LIGHT_DIRECTIONAL"),
+                           QStringLiteral("anari_khr_light_point")};
+    using vitrine::AnariUtils::hasExtension;
+    EXPECT_TRUE(hasExtension(exts, QStringLiteral("ANARI_KHR_LIGHT_DIRECTIONAL")));
+    EXPECT_TRUE(hasExtension(exts, QStringLiteral("KHR_LIGHT_POINT")));
+    EXPECT_FALSE(hasExtension(exts, QStringLiteral("ANARI_KHR_LIGHT_SPOT")));
+    EXPECT_FALSE(hasExtension({}, QStringLiteral("ANARI_KHR_LIGHT_SPOT")));
+}
+
+TEST(AnariRendererTest, SupportedLightTypesMatchBackend)
+{
+    QAppHolder app;
+    AnariRenderer renderer;
+    EXPECT_TRUE(renderer.supportedLightTypes().empty()) << "no backend loaded yet";
+
+    renderer.resize(QSize(16, 16));
+    renderer.loadBackend(QStringLiteral("phenocryst"), QStringLiteral("default"));
+    EXPECT_EQ(renderer.supportedLightTypes().size(), 3u);
+}

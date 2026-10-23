@@ -39,9 +39,12 @@ QColor toQColor(const glm::vec3& c)
 }
 } // namespace
 
-LightConfigDialog::LightConfigDialog(const std::vector<LightConfig>& initial, QWidget* parent)
+LightConfigDialog::LightConfigDialog(const std::vector<LightConfig>& initial,
+                                     const std::vector<LightType>& supportedTypes,
+                                     QWidget* parent)
     : QDialog(parent)
     , m_lights(initial)
+    , m_supportedTypes(supportedTypes)
 {
     setWindowTitle(tr("Light Configuration"));
     setModal(true);
@@ -53,6 +56,14 @@ LightConfigDialog::LightConfigDialog(const std::vector<LightConfig>& initial, QW
     // Left: list + add/remove.
     auto* left = new QVBoxLayout();
     body->addLayout(left);
+    const QString noSupport =
+        tr("The active backend does not support directional, point or spot lights.");
+    if (m_supportedTypes.empty()) 
+    {
+        auto* note = new QLabel(noSupport, this);
+        note->setWordWrap(true);
+        left->addWidget(note);
+    }
     m_list = new QListWidget(this);
     m_list->setMinimumWidth(160);
     left->addWidget(m_list, 1);
@@ -61,11 +72,16 @@ LightConfigDialog::LightConfigDialog(const std::vector<LightConfig>& initial, QW
     left->addLayout(buttonRow);
     auto* addButton = new QPushButton(tr("Add"), this);
     auto* addMenu = new QMenu(addButton);
-    for (LightType t : {LightType::Directional, LightType::Point, LightType::Spot}) 
+    for (LightType t : m_supportedTypes) 
     {
         addMenu->addAction(typeName(t), this, [this, t] { addLight(t); });
     }
     addButton->setMenu(addMenu);
+    if (m_supportedTypes.empty()) 
+    {
+        addButton->setEnabled(false);
+        addButton->setToolTip(noSupport);
+    }
     m_removeButton = new QPushButton(tr("Remove"), this);
     buttonRow->addWidget(addButton);
     buttonRow->addWidget(m_removeButton);
@@ -79,10 +95,7 @@ LightConfigDialog::LightConfigDialog(const std::vector<LightConfig>& initial, QW
     m_form->addRow(m_enabledCheck);
 
     m_typeCombo = new QComboBox(m_formWidget);
-    for (LightType t : {LightType::Directional, LightType::Point, LightType::Spot}) 
-    {
-        m_typeCombo->addItem(typeName(t), static_cast<int>(t));
-    }
+    populateTypeCombo(m_supportedTypes.empty() ? LightType::Directional : m_supportedTypes.front());
     m_form->addRow(tr("Type: "), m_typeCombo);
 
     m_colorButton = new QPushButton(m_formWidget);
@@ -185,9 +198,36 @@ void LightConfigDialog::writeVec3(const Vec3Editor& editor, const glm::vec3& v)
     }
 }
 
+bool LightConfigDialog::isSupported(LightType type) const
+{
+    return std::find(m_supportedTypes.begin(), m_supportedTypes.end(), type) != m_supportedTypes.end();
+}
+
+void LightConfigDialog::populateTypeCombo(LightType current)
+{
+    const bool wasLoading = m_loading;
+    m_loading = true;
+    m_typeCombo->clear();
+    for (LightType t : m_supportedTypes) 
+    {
+        m_typeCombo->addItem(typeName(t), static_cast<int>(t));
+    }
+    if (!isSupported(current)) 
+    {
+        // Keep an existing light's type selectable so loading it doesn't
+        // silently rewrite it to another type.
+        m_typeCombo->addItem(tr("%1 (unsupported)").arg(typeName(current)), static_cast<int>(current));
+    }
+    m_loading = wasLoading;
+}
+
 QString LightConfigDialog::labelFor(int index, const LightConfig& light) const
 {
     QString text = tr("%1 %2").arg(typeName(light.type)).arg(index + 1);
+    if (!isSupported(light.type)) 
+    {
+        text += tr(" (unsupported)");
+    }
     if (!light.enabled) 
     {
         text += tr(" (off)");
@@ -266,6 +306,7 @@ void LightConfigDialog::onRowChanged(int row)
 
     const LightConfig& l = m_lights[row];
     m_loading = true;
+    populateTypeCombo(l.type);
     m_enabledCheck->setChecked(l.enabled);
     m_typeCombo->setCurrentIndex(m_typeCombo->findData(static_cast<int>(l.type)));
     writeVec3(m_position, l.position);

@@ -108,6 +108,8 @@ void AnariRenderer::loadBackend(const QString& libraryName, const QString& devic
         return;
     }
     anariCommitParameters(m_device, m_device);
+    m_anariScene.deviceExtensions =
+        AnariUtils::enumerateDeviceExtensions(m_library, m_deviceSubtype);
 
     const QByteArray rendererUtf8 = m_rendererSubtype.toUtf8();
     m_anariScene.renderer = anariNewRenderer(m_device, rendererUtf8.constData());
@@ -374,6 +376,25 @@ void AnariRenderer::loadSceneFromFile(const QString& path)
     rebuildLights();
 }
 
+std::vector<LightType> AnariRenderer::supportedLightTypes() const
+{
+    std::vector<LightType> result;
+    if (!m_library) 
+    {
+        return result;
+    }
+    const QStringList extensions =
+        AnariUtils::enumerateDeviceExtensions(m_library, m_deviceSubtype);
+    for (LightType t : {LightType::Directional, LightType::Point, LightType::Spot}) 
+    {
+        if (AnariUtils::hasExtension(extensions, QLatin1String(lightExtensionName(t)))) 
+        {
+            result.push_back(t);
+        }
+    }
+    return result;
+}
+
 void AnariRenderer::setLightConfigs(const std::vector<LightConfig>& lights)
 {
     m_lightConfigs = lights;
@@ -407,11 +428,19 @@ void AnariRenderer::rebuildLights()
         return len > 1.0e-6f ? v / len : glm::vec3(0.0f, 0.0f, -1.0f);
     };
 
+    const std::vector<LightType> supported = supportedLightTypes();
     size_t enabledCount = 0;
     for (const LightConfig& cfg : m_lightConfigs) 
     {
         if (!cfg.enabled) 
         {
+            continue;
+        }
+        if (std::find(supported.begin(), supported.end(), cfg.type) == supported.end()) 
+        {
+            emitStatus(LogLevel::Warning,
+                       QStringLiteral("Backend does not advertise %1; light ignored.")
+                           .arg(QLatin1String(lightExtensionName(cfg.type))));
             continue;
         }
         

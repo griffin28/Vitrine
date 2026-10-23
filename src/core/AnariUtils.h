@@ -200,6 +200,19 @@ namespace AnariUtils
     /// @return device subtype names exposed by the library
     QStringList enumerateDeviceSubtypes(ANARILibrary library);
 
+    /// @brief Enumerate extensions advertised by an ANARI device subtype
+    /// @param library loaded ANARI library to query
+    /// @param deviceSubtype device subtype to query
+    /// @return extension names, e.g. "ANARI_KHR_LIGHT_SPOT"
+    QStringList enumerateDeviceExtensions(ANARILibrary library, const QString& deviceSubtype);
+
+    /// @brief Check whether an extension list contains a named extension
+    /// @param extensions list from enumerateDeviceExtensions()
+    /// @param name extension name; compared case-insensitively, with or
+    ///        without the "ANARI_" prefix
+    /// @return true if present
+    bool hasExtension(const QStringList& extensions, const QString& name);
+
     /// @brief Enumerate renderer subtypes advertised by an ANARI device
     /// @param device ANARI device to query
     /// @return renderer subtype names exposed by the device

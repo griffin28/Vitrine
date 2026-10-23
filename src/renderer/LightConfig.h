@@ -40,6 +40,18 @@ struct LightConfig
     float falloffAngleDegrees{5.0f};  // spot: smooth region inside the cone edge
 };
 
+/// @brief ANARI extension that provides a light type
+inline const char* lightExtensionName(LightType type)
+{
+    switch (type)
+    {
+        case LightType::Point: return "ANARI_KHR_LIGHT_POINT";
+        case LightType::Spot: return "ANARI_KHR_LIGHT_SPOT";
+        case LightType::Directional:
+        default: return "ANARI_KHR_LIGHT_DIRECTIONAL";
+    }
+}
+
 /// @brief Maximum number of lights the renderer sends to the backend.
 ///        Phenocryst uploads at most 16; extras are dropped with a warning.
 constexpr size_t kMaxLights = 16;

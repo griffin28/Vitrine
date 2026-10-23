@@ -8,6 +8,7 @@
 #include <QProcessEnvironment>
 #include <QSet>
 
+#include <algorithm>
 #include <cstring>
 
 namespace vitrine
@@ -172,6 +173,35 @@ QStringList enumerateDeviceSubtypes(ANARILibrary library)
         result << QString::fromUtf8(subtypes[i]);
     }
     return result;
+}
+
+QStringList enumerateDeviceExtensions(ANARILibrary library, const QString& deviceSubtype)
+{
+    QStringList result;
+    if (!library) {
+        return result;
+    }
+    const QByteArray subtypeUtf8 = deviceSubtype.toUtf8();
+    const char** extensions = anariGetDeviceExtensions(library, subtypeUtf8.constData());
+    if (!extensions) {
+        return result;
+    }
+    for (int i = 0; extensions[i] != nullptr; ++i) {
+        result << QString::fromUtf8(extensions[i]);
+    }
+    return result;
+}
+
+bool hasExtension(const QStringList& extensions, const QString& name)
+{
+    static const QString prefix = QStringLiteral("ANARI_");
+    const auto normalize = [](QString s) {
+        s = s.toUpper();
+        return s.startsWith(prefix) ? s.mid(prefix.size()) : s;
+    };
+    const QString wanted = normalize(name);
+    return std::any_of(extensions.begin(), extensions.end(),
+                       [&](const QString& e) { return normalize(e) == wanted; });
 }
 
 QStringList enumerateRendererSubtypes(ANARIDevice device)

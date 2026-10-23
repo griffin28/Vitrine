@@ -125,8 +125,11 @@ single directional light. `Anari → Lights...` opens `LightConfigDialog`; the
 list persists under `AppMainWindow/anari/lights` (array) in `QSettings`.
 `LightGizmoOverlay` (child of the frame widget, toggled by Preferences →
 Show Light Gizmos) draws each light using `AnariRenderer::cameraMatricesChanged`.
+Light types are gated on the backend's `ANARI_KHR_LIGHT_{DIRECTIONAL,POINT,SPOT}`
+device extensions (`AnariRenderer::supportedLightTypes()`): the dialog only
+offers supported types, and the renderer skips unsupported lights with a warning.
 `ObjDataLoader` creates one `phong` material per (shape, .mtl material) from
-`Kd`/`Ks`/`Ns`, falling back to `matte` if the backend lacks `phong`.
+`Kd`/`Ks`/`Ns`, using `phong` only when the device advertises `ANARI_PHENOCRYST_MATERIAL_PHONG`, otherwise `matte`.
 
 ### Important cross-cutting details
 
@@ -154,6 +157,16 @@ Show Light Gizmos) draws each light using `AnariRenderer::cameraMatricesChanged`
   `DataLoader`s emit their own `statusMessage(int, QString)`; `loadSceneFromFile`
   connects it to the renderer's identically-shaped signal so loader messages
   reach the same log path.
+- **Capability checks use extensions, not null handles**: to decide whether a
+  backend supports an object type or feature (lights, `phong` material, ...),
+  check the device's advertised extensions
+  (`AnariUtils::enumerateDeviceExtensions` + `AnariUtils::hasExtension`, e.g.
+  `ANARI_KHR_LIGHT_SPOT`, `ANARI_PHENOCRYST_MATERIAL_PHONG`). Do not infer
+  support from `anariNew*` returning `nullptr`: ANARI devices may hand back a
+  valid (or unknown/placeholder) object for subtypes they don't implement, so a
+  non-null handle does not mean the capability exists. The extension list is
+  cached in `AnariScene::deviceExtensions` after `loadBackend`; a null return
+  is still worth handling as a failure, but not as the support test.
 - **Threading**: `AnariRenderer` lives on the **GUI thread** as a child
   of `AppMainWindow`. Some ANARI backends statically embed CPU ray tracers
   (helide ships `embree_for_helide`) whose task schedulers crash when first

@@ -120,6 +120,13 @@ bool ObjDataLoader::load(ANARIDevice device, AnariScene& scene)
     // Build a surface per shape: dedup that shape's vertices, create its own
     // triangle geometry + matte material, and gather the surface into the
     // scene.
+    const bool usePhong = AnariUtils::hasExtension(scene.deviceExtensions, QStringLiteral("ANARI_PHENOCRYST_MATERIAL_PHONG"));
+    if (!usePhong) 
+    {
+        emitStatus(LogLevel::Warning,
+                   QStringLiteral("Backend lacks ANARI_PHENOCRYST_MATERIAL_PHONG. Using matte materials."));
+    }
+
     // A shape may use several .mtl materials (one per face), so each
     // (shape, material) bucket becomes its own surface.
     struct Bucket 
@@ -257,8 +264,8 @@ bool ObjDataLoader::load(ANARIDevice device, AnariScene& scene)
         anariCommitParameters(device, geometry);
 
         // Blinn-Phong material from the .mtl entry (Kd/Ks/Ns); faces without
-        // a material get modest defaults. Fall back to matte on backends that
-        // lack "phong".
+        // a material get modest defaults. "phong" is a Phenocryst extension, so
+        // only use it when the device advertises it; otherwise use matte.
         std::array<float, 3> kd{0.8f, 0.8f, 0.8f};
         std::array<float, 3> ks{0.3f, 0.3f, 0.3f};
         float shininess = 32.0f;
@@ -270,12 +277,8 @@ bool ObjDataLoader::load(ANARIDevice device, AnariScene& scene)
             shininess = std::max(1.0f, m.shininess);
         }
 
-        ANARIMaterial material = anariNewMaterial(device, "phong");
-        const bool phong = material != nullptr;
-        if (!phong) 
-        {
-            material = anariNewMaterial(device, "matte");
-        }
+        ANARIMaterial material = usePhong ? anariNewMaterial(device, "phong") 
+                                          : anariNewMaterial(device, "matte");
         if (material) 
         {
             if (sampler) {
@@ -283,7 +286,7 @@ bool ObjDataLoader::load(ANARIDevice device, AnariScene& scene)
             } else {
                 anariSetParameter(device, material, "color", ANARI_FLOAT32_VEC3, kd.data());
             }
-            if (phong) {
+            if (usePhong) {
                 anariSetParameter(device, material, "specular", ANARI_FLOAT32_VEC3, ks.data());
                 anariSetParameter(device, material, "shininess", ANARI_FLOAT32, &shininess);
             }

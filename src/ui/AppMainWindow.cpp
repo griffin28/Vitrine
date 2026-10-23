@@ -523,7 +523,7 @@ void AppMainWindow::onCameraConfigChanged(const CameraConfig& config)
 
 void AppMainWindow::showLightOptionsDialog()
 {
-    LightConfigDialog dialog(m_lightConfigs, this);
+    LightConfigDialog dialog(m_lightConfigs, m_renderer->supportedLightTypes(), this);
     connect(&dialog, &LightConfigDialog::lightConfigsChanged,
             this, &AppMainWindow::onLightConfigsChanged);
     dialog.exec();

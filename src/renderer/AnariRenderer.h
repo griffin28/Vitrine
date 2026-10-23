@@ -45,6 +45,10 @@ struct AnariScene
     std::vector<ANARIVolume> volumes;
     std::vector<ANARILight> lights;
 
+    /// Extensions advertised by the loaded device (e.g. "ANARI_KHR_LIGHT_SPOT"),
+    /// so loaders can pick materials the backend actually provides.
+    QStringList deviceExtensions;
+
     /// @brief Release scene content while keeping persistent renderer handles
     /// @param device ANARI device that owns the scene handles
     void releaseContent(ANARIDevice device)
@@ -67,6 +71,7 @@ struct AnariScene
         }
         releaseContent(device);
         releaseHandles(device, lights);
+        deviceExtensions.clear();
         releaseHandle(device, frame);
         releaseHandle(device, world);
         releaseHandle(device, renderer);
@@ -147,6 +152,10 @@ public:
     /// @brief Get the current light configuration
     /// @return configured lights, including disabled ones
     const std::vector<LightConfig>& lightConfigs() const { return m_lightConfigs; }
+
+    /// @brief Get the light types the loaded backend advertises extensions for
+    /// @return supported light types; empty if no backend is loaded
+    std::vector<LightType> supportedLightTypes() const;
 
     /// @brief Destroy the current ANARI backend and release its handles
     void destroyBackend();

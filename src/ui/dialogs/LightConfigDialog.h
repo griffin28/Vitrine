@@ -31,8 +31,11 @@ class LightConfigDialog : public QDialog
 public:
     /// @brief Constructor
     /// @param initial lights to edit
+    /// @param supportedTypes light types the backend supports; only these can be added
     /// @param parent parent widget
-    explicit LightConfigDialog(const std::vector<LightConfig>& initial, QWidget* parent = nullptr);
+    LightConfigDialog(const std::vector<LightConfig>& initial,
+                      const std::vector<LightType>& supportedTypes,
+                      QWidget* parent = nullptr);
 
     /// @brief Destructor
     ~LightConfigDialog() override = default;
@@ -90,6 +93,12 @@ private:
     /// @brief Show only the form rows relevant to a light type
     void updateRowVisibility(LightType type);
 
+    /// @brief Whether the backend supports a light type
+    bool isSupported(LightType type) const;
+
+    /// @brief Fill the type combo with supported types, plus `current` if unsupported
+    void populateTypeCombo(LightType current);
+
     /// @brief List label for a light
     QString labelFor(int index, const LightConfig& light) const;
 
@@ -100,6 +109,7 @@ private:
     void updateEnabledState();
 
     std::vector<LightConfig> m_lights;
+    std::vector<LightType> m_supportedTypes;
     int m_row{-1};
     bool m_loading{false};
 
