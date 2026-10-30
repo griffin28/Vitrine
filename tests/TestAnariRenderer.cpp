@@ -3,10 +3,14 @@
 #include <anari/anari.h>
 
 #include <QCoreApplication>
+#include <QDir>
+#include <QFile>
 #include <QImage>
 #include <QObject>
 #include <QSignalSpy>
 #include <QString>
+#include <QStringList>
+#include <QTemporaryDir>
 
 #include <gtest/gtest.h>
 
@@ -198,4 +202,62 @@ TEST(AnariRendererTest, SupportedLightTypesMatchBackend)
     renderer.resize(QSize(16, 16));
     renderer.loadBackend(QStringLiteral("phenocryst"), QStringLiteral("default"));
     EXPECT_EQ(renderer.supportedLightTypes().size(), 3u);
+}
+
+namespace
+{
+
+// Writes a one-triangle OBJ whose material references `texName` via map_Kd
+// (backslash-separated on purpose) and returns the loader messages.
+QStringList loadTexturedObj(const QString& texName, bool writeTexture)
+{
+    QTemporaryDir dir;
+    EXPECT_TRUE(dir.isValid());
+    QDir(dir.path()).mkpath(QStringLiteral("tex"));
+    if (writeTexture) {
+        QImage img(2, 2, QImage::Format_RGBA8888);
+        img.fill(Qt::red);
+        EXPECT_TRUE(img.save(dir.filePath(QStringLiteral("tex/red.png"))));
+    }
+
+    QFile mtl(dir.filePath(QStringLiteral("tri.mtl")));
+    EXPECT_TRUE(mtl.open(QIODevice::WriteOnly | QIODevice::Text));
+    mtl.write(("newmtl m\nKd 0.5 0.5 0.5\nmap_Kd " + texName + "\n").toUtf8());
+    mtl.close();
+
+    QFile obj(dir.filePath(QStringLiteral("tri.obj")));
+    EXPECT_TRUE(obj.open(QIODevice::WriteOnly | QIODevice::Text));
+    obj.write("mtllib tri.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\n"
+              "vt 0 0\nvt 1 0\nvt 0 1\nusemtl m\nf 1/1 2/2 3/3\n");
+    obj.close();
+
+    AnariRenderer renderer;
+    QSignalSpy status(&renderer, &AnariRenderer::statusMessage);
+    renderer.resize(QSize(16, 16));
+    renderer.loadBackend(QStringLiteral("phenocryst"), QStringLiteral("default"));
+    renderer.loadSceneFromFile(dir.filePath(QStringLiteral("tri.obj")));
+
+    QStringList messages;
+    for (const auto& args : status) {
+        messages << args.at(1).toString();
+    }
+    return messages;
+}
+
+} // namespace
+
+TEST(ObjLoaderTest, MapKdTextureResolvedRelativeToMtl)
+{
+    QAppHolder app;
+    const QStringList messages = loadTexturedObj(QStringLiteral("tex\\red.png"), true);
+    EXPECT_FALSE(messages.filter(QStringLiteral("Failed to load texture")).size());
+    EXPECT_TRUE(messages.filter(QStringLiteral("Loaded OBJ")).size());
+}
+
+TEST(ObjLoaderTest, MissingTextureWarnsAndStillLoads)
+{
+    QAppHolder app;
+    const QStringList messages = loadTexturedObj(QStringLiteral("tex/red.png"), false);
+    EXPECT_EQ(messages.filter(QStringLiteral("Failed to load texture")).size(), 1);
+    EXPECT_TRUE(messages.filter(QStringLiteral("Loaded OBJ")).size());
 }

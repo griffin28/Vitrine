@@ -2,13 +2,9 @@
 
 #include <anari/anari.h>
 
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 
-#include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 #include <QString>
@@ -21,7 +17,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "AnariUtils.h" // makeManagedArray1D
+#include "AnariUtils.h" // makeManagedArray1D, makeImageSampler
 #include "AppUtils.h" // Vertex struct + std::hash<Vertex>
 
 
@@ -29,31 +25,12 @@ namespace vitrine
 {
 
 using AnariUtils::makeManagedArray1D;
-
-namespace
-{
-
-// 2D analogue of AnariUtils::makeManagedArray1D: copies width*height elements of `elemSize`
-// bytes into a device-managed array (used to back image samplers).
-ANARIArray2D makeManagedArray2D(ANARIDevice device, ANARIDataType type,
-                                const void* data, size_t width, size_t height,
-                                size_t elemSize)
-{
-    ANARIArray2D array = anariNewArray2D(device, nullptr, nullptr, nullptr, type, width, height);
-    if (array && width > 0 && height > 0) {
-        if (void* mapped = anariMapArray(device, array)) {
-            std::memcpy(mapped, data, width * height * elemSize);
-        }
-        anariUnmapArray(device, array);
-    }
-    return array;
-}
-
-} // namespace
+using AnariUtils::makeImageSampler;
 
 bool ObjDataLoader::load(ANARIDevice device, AnariScene& scene)
 {
-    if (!device || !scene.world) {
+    if (!device || !scene.world) 
+    {
         return false;
     }
 
@@ -63,11 +40,13 @@ bool ObjDataLoader::load(ANARIDevice device, AnariScene& scene)
     std::vector<tinyobj::material_t> materials;
     std::string warn;
     std::string err;
+
     // The .mtl is resolved relative to the OBJ, not the working directory.
     const std::string mtlBaseDir =
         (QFileInfo(m_filePath).absolutePath() + QLatin1Char('/')).toStdString();
     if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
-                          m_filePath.toStdString().c_str(), mtlBaseDir.c_str())) {
+                          m_filePath.toStdString().c_str(), mtlBaseDir.c_str())) 
+    {
         emitStatus(LogLevel::Warning,
                QStringLiteral("Failed to load OBJ '%1': %2 %3")
                    .arg(m_filePath, QString::fromStdString(warn), QString::fromStdString(err)));
@@ -76,46 +55,6 @@ bool ObjDataLoader::load(ANARIDevice device, AnariScene& scene)
 
     size_t totalVerts = 0;
     size_t totalTris = 0;
-
-    // TODO: Remove once the OBJ loader parses materials/textures from the .mtl.
-    // For now every surface is textured with the bundled Viking Room image so
-    // the texture path is exercised end-to-end. Load it once and share a single
-    // image2D sampler across all materials (samplers are reference-counted).
-    ANARISampler sampler{nullptr};
-    const QString texturePath =
-        QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("textures/viking_room.png"));
-    int texWidth = 0;
-    int texHeight = 0;
-    int texChannels = 0;
-    stbi_uc* pixels = stbi_load(texturePath.toStdString().c_str(),
-                                &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-    if (pixels) {
-        sampler = anariNewSampler(device, "image2D");
-        ANARIArray2D imageArray = makeManagedArray2D(
-            device, ANARI_UFIXED8_VEC4, pixels,
-            static_cast<size_t>(texWidth), static_cast<size_t>(texHeight), 4);
-        anariSetParameter(device, sampler, "image", ANARI_ARRAY2D, &imageArray);
-        anariRelease(device, imageArray);
-
-        // Sample using the texcoords we upload as vertex.attribute0; wrap and
-        // filter like the original Vulkan sampler did.
-        const char* inAttribute = "attribute0";
-        const char* wrapMode = "repeat";
-        const char* filter = "linear";
-        anariSetParameter(device, sampler, "inAttribute", ANARI_STRING, inAttribute);
-        anariSetParameter(device, sampler, "wrapMode1", ANARI_STRING, wrapMode);
-        anariSetParameter(device, sampler, "wrapMode2", ANARI_STRING, wrapMode);
-        anariSetParameter(device, sampler, "filter", ANARI_STRING, filter);
-        anariCommitParameters(device, sampler);
-
-        // The image array data was copied into the device-managed array above,
-        // so the CPU-side pixels are no longer needed.
-        stbi_image_free(pixels);
-    } else {
-        emitStatus(LogLevel::Warning,
-                   QStringLiteral("Failed to load texture '%1'; surfaces will be untextured.")
-                       .arg(texturePath));
-    }
 
     // Build a surface per shape: dedup that shape's vertices, create its own
     // triangle geometry + matte material, and gather the surface into the
@@ -127,6 +66,37 @@ bool ObjDataLoader::load(ANARIDevice device, AnariScene& scene)
                    QStringLiteral("Backend lacks ANARI_PHENOCRYST_MATERIAL_PHONG. Using matte materials."));
     }
 
+    // map_Kd textures, shared by every material that references the same
+    // image + wrap mode. A null entry records a failed load so the warning is
+    // emitted only once per file.
+    std::unordered_map<std::string, ANARISampler> samplers;
+    auto diffuseSampler = [&](const tinyobj::material_t& m) -> ANARISampler {
+        if (m.diffuse_texname.empty()) 
+        {
+            return nullptr;
+        }
+        std::string name = m.diffuse_texname;
+        std::replace(name.begin(), name.end(), '\\', '/');
+        const QString resolved = QDir(QString::fromStdString(mtlBaseDir))
+                                     .absoluteFilePath(QString::fromStdString(name));
+        const bool clamp = m.diffuse_texopt.clamp;
+        const std::string key = resolved.toStdString() + (clamp ? "|clamp" : "|repeat");
+        auto it = samplers.find(key);
+        if (it == samplers.end()) 
+        {
+            ANARISampler s = makeImageSampler(device, resolved.toStdString(), clamp);
+            if (!s) 
+            {
+                emitStatus(LogLevel::Warning,
+                           QStringLiteral("Failed to load texture '%1' for material '%2'; "
+                                          "using its diffuse color.")
+                               .arg(resolved, QString::fromStdString(m.name)));
+            }
+            it = samplers.emplace(key, s).first;
+        }
+        return it->second;
+    };
+
     // A shape may use several .mtl materials (one per face), so each
     // (shape, material) bucket becomes its own surface.
     struct Bucket 
@@ -134,15 +104,19 @@ bool ObjDataLoader::load(ANARIDevice device, AnariScene& scene)
         int materialId;
         std::vector<tinyobj::index_t> indices;
     };
+
     // Iterate over all shapes in the OBJ file
-    for (const auto& shape : shapes) {
+    for (const auto& shape : shapes) 
+    {
         std::vector<Bucket> buckets;
         const size_t faceCount = shape.mesh.indices.size() / 3;
-        for (size_t f = 0; f < faceCount; ++f) {
+        for (size_t f = 0; f < faceCount; ++f) 
+        {
             const int matId = f < shape.mesh.material_ids.size() ? shape.mesh.material_ids[f] : -1;
             auto it = std::find_if(buckets.begin(), buckets.end(),
                                    [matId](const Bucket& b) { return b.materialId == matId; });
-            if (it == buckets.end()) {
+            if (it == buckets.end()) 
+            {
                 buckets.push_back({matId, {}});
                 it = std::prev(buckets.end());
             }
@@ -150,183 +124,207 @@ bool ObjDataLoader::load(ANARIDevice device, AnariScene& scene)
                                shape.mesh.indices.begin() + 3 * f,
                                shape.mesh.indices.begin() + 3 * f + 3);
         }
-
-      for (const auto& bucket : buckets) {
-        std::unordered_map<Vertex, uint32_t> uniqueVertices;
-        std::vector<Vertex> verts;
-        std::vector<uint32_t> idx;
-        bool useTexCoords = false;
-        bool useVertexNormals = false;
-
-        for (const auto& index : bucket.indices) {
-            Vertex v{};
-            // Vertex position
-            v.pos = {attrib.vertices[3 * index.vertex_index + 0],
-                     attrib.vertices[3 * index.vertex_index + 1],
-                     attrib.vertices[3 * index.vertex_index + 2]};
-            // Vertex texture coord
-            if (index.texcoord_index >= 0) {
-                useTexCoords = true;
-                v.texCoord = {attrib.texcoords[2 * index.texcoord_index + 0],
-                              1.0f - attrib.texcoords[2 * index.texcoord_index + 1]};
-            }
-            // Vertex normal
-            if (index.normal_index >=0) {
-                useVertexNormals = true;
-                v.normal = {attrib.normals[3 * index.normal_index + 0],
-                            attrib.normals[3 * index.normal_index + 1],
-                            attrib.normals[3 * index.normal_index + 2]};
-            }
-            // Vertex color
-            v.color = {1.0f, 1.0f, 1.0f};
-
-            auto it = uniqueVertices.find(v);
-            if (it == uniqueVertices.end()) {
-                const uint32_t newIdx = static_cast<uint32_t>(verts.size());
-                uniqueVertices.emplace(v, newIdx);
-                verts.push_back(v);
-                idx.push_back(newIdx);
-            } else {
-                idx.push_back(it->second);
-            }
-        }
-        if (verts.empty() || idx.size() < 3) {
-            continue;
-        }
-
-        // Repack into plain float[3]/uint32_t[3] buffers; these are copied into
-        // device-managed arrays below, so they may die at the end of the loop.
-        std::vector<std::array<float, 3>> positions;
-        positions.reserve(verts.size());
-        std::vector<std::array<float, 3>> colors;
-        colors.reserve(verts.size());
-        for (const auto& v : verts) {
-            positions.push_back({v.pos.x, v.pos.y, v.pos.z});
-            colors.push_back({v.color.x, v.color.y, v.color.z});
-        }
-
-        std::vector<std::array<uint32_t, 3>> indices;
-        indices.reserve(idx.size() / 3);
-        for (size_t i = 0; i + 2 < idx.size(); i += 3) {
-            indices.push_back({idx[i], idx[i + 1], idx[i + 2]});
-        }
-
-        ANARIGeometry geometry = anariNewGeometry(device, "triangle");
-        if (!geometry) {
-            emitStatus(LogLevel::Warning,
-                   QStringLiteral("Backend does not implement triangle geometry yet "
-                                  "(anariNewGeometry returned null). Scene wiring is "
-                                  "live; only clear-frame will render."));
-            return false;
-        }
-
-        anariSetParameter(device, geometry, "name", ANARI_STRING, shape.name.c_str());
-
-        ANARIArray1D positionArray = makeManagedArray1D(
-            device, ANARI_FLOAT32_VEC3, positions.data(), positions.size(), sizeof(positions[0]));
-        ANARIArray1D colorArray = makeManagedArray1D(
-            device, ANARI_FLOAT32_VEC3, colors.data(), colors.size(), sizeof(colors[0]));
-        ANARIArray1D indexArray = makeManagedArray1D(
-            device, ANARI_UINT32_VEC3, indices.data(), indices.size(), sizeof(indices[0]));
-        anariSetParameter(device, geometry, "vertex.position", ANARI_ARRAY1D, &positionArray);
-        anariSetParameter(device, geometry, "vertex.color", ANARI_ARRAY1D, &colorArray);
-        anariSetParameter(device, geometry, "primitive.index", ANARI_ARRAY1D, &indexArray);
-
-        if (useVertexNormals)
+        
+        for (const auto& bucket : buckets) 
         {
-            std::vector<std::array<float, 3>> normals;
+            std::unordered_map<Vertex, uint32_t> uniqueVertices;
+            std::vector<Vertex> verts;
+            std::vector<uint32_t> idx;
+            bool useTexCoords = false;
+            bool useVertexNormals = false;
+
+            for (const auto& index : bucket.indices) 
+            {
+                Vertex v{};
+                // Vertex position
+                v.pos = {attrib.vertices[3 * index.vertex_index + 0],
+                        attrib.vertices[3 * index.vertex_index + 1],
+                        attrib.vertices[3 * index.vertex_index + 2]};
+                // Vertex texture coord
+                if (index.texcoord_index >= 0) {
+                    useTexCoords = true;
+                    v.texCoord = {attrib.texcoords[2 * index.texcoord_index + 0],
+                                1.0f - attrib.texcoords[2 * index.texcoord_index + 1]};
+                }
+                // Vertex normal
+                if (index.normal_index >=0) {
+                    useVertexNormals = true;
+                    v.normal = {attrib.normals[3 * index.normal_index + 0],
+                                attrib.normals[3 * index.normal_index + 1],
+                                attrib.normals[3 * index.normal_index + 2]};
+                }
+                // Vertex color
+                v.color = {1.0f, 1.0f, 1.0f};
+
+                auto it = uniqueVertices.find(v);
+                if (it == uniqueVertices.end()) {
+                    const uint32_t newIdx = static_cast<uint32_t>(verts.size());
+                    uniqueVertices.emplace(v, newIdx);
+                    verts.push_back(v);
+                    idx.push_back(newIdx);
+                } else {
+                    idx.push_back(it->second);
+                }
+            }
+            if (verts.empty() || idx.size() < 3) 
+            {
+                continue;
+            }
+
+            // Repack into plain float[3]/uint32_t[3] buffers; these are copied into
+            // device-managed arrays below, so they may die at the end of the loop.
+            std::vector<std::array<float, 3>> positions;
+            positions.reserve(verts.size());
+            std::vector<std::array<float, 3>> colors;
+            colors.reserve(verts.size());
             for (const auto& v : verts) {
-                normals.push_back({v.normal.x, v.normal.y, v.normal.z});
+                positions.push_back({v.pos.x, v.pos.y, v.pos.z});
+                colors.push_back({v.color.x, v.color.y, v.color.z});
             }
 
-            ANARIArray1D normalArray = makeManagedArray1D(
-                device, ANARI_FLOAT32_VEC3, normals.data(), normals.size(), sizeof(normals[0])); 
-            anariSetParameter(device, geometry, "vertex.normal", ANARI_ARRAY1D, &normalArray);
-            anariRelease(device, normalArray);
-        }
-
-        if (useTexCoords)
-        {
-            std::vector<std::array<float, 2>> texCoords;
-            for (const auto& v : verts) {
-                texCoords.push_back({v.texCoord.x, v.texCoord.y});
+            std::vector<std::array<uint32_t, 3>> indices;
+            indices.reserve(idx.size() / 3);
+            for (size_t i = 0; i + 2 < idx.size(); i += 3) {
+                indices.push_back({idx[i], idx[i + 1], idx[i + 2]});
             }
 
-            ANARIArray1D texCoordArray = makeManagedArray1D(
-                device, ANARI_FLOAT32_VEC2, texCoords.data(), texCoords.size(), sizeof(texCoords[0])); 
-            anariSetParameter(device, geometry, "vertex.attribute0", ANARI_ARRAY1D, &texCoordArray);
-            anariRelease(device, texCoordArray);
-        }
-
-        anariRelease(device, positionArray);
-        anariRelease(device, colorArray);
-        anariRelease(device, indexArray);
-        anariCommitParameters(device, geometry);
-
-        // Blinn-Phong material from the .mtl entry (Kd/Ks/Ns); faces without
-        // a material get modest defaults. "phong" is a Phenocryst extension, so
-        // only use it when the device advertises it; otherwise use matte.
-        std::array<float, 3> kd{0.8f, 0.8f, 0.8f};
-        std::array<float, 3> ks{0.3f, 0.3f, 0.3f};
-        float shininess = 32.0f;
-        if (bucket.materialId >= 0 && static_cast<size_t>(bucket.materialId) < materials.size()) 
-        {
-            const auto& m = materials[bucket.materialId];
-            kd = {m.diffuse[0], m.diffuse[1], m.diffuse[2]};
-            ks = {m.specular[0], m.specular[1], m.specular[2]};
-            shininess = std::max(1.0f, m.shininess);
-        }
-
-        ANARIMaterial material = usePhong ? anariNewMaterial(device, "phong") 
-                                          : anariNewMaterial(device, "matte");
-        if (material) 
-        {
-            if (sampler) {
-                anariSetParameter(device, material, "color", ANARI_SAMPLER, &sampler);
-            } else {
-                anariSetParameter(device, material, "color", ANARI_FLOAT32_VEC3, kd.data());
+            ANARIGeometry geometry = anariNewGeometry(device, "triangle");
+            if (!geometry) {
+                emitStatus(LogLevel::Warning,
+                    QStringLiteral("Backend does not implement triangle geometry yet "
+                                    "(anariNewGeometry returned null). Scene wiring is "
+                                    "live; only clear-frame will render."));
+                return false;
             }
-            if (usePhong) {
-                anariSetParameter(device, material, "specular", ANARI_FLOAT32_VEC3, ks.data());
-                anariSetParameter(device, material, "shininess", ANARI_FLOAT32, &shininess);
-            }
-            anariCommitParameters(device, material);
-        }
 
-        ANARISurface surface = anariNewSurface(device);
-        if (!surface) {
+            anariSetParameter(device, geometry, "name", ANARI_STRING, shape.name.c_str());
+
+            ANARIArray1D positionArray = makeManagedArray1D(
+                device, ANARI_FLOAT32_VEC3, positions.data(), positions.size(), sizeof(positions[0]));
+            ANARIArray1D colorArray = makeManagedArray1D(
+                device, ANARI_FLOAT32_VEC3, colors.data(), colors.size(), sizeof(colors[0]));
+            ANARIArray1D indexArray = makeManagedArray1D(
+                device, ANARI_UINT32_VEC3, indices.data(), indices.size(), sizeof(indices[0]));
+            anariSetParameter(device, geometry, "vertex.position", ANARI_ARRAY1D, &positionArray);
+            anariSetParameter(device, geometry, "vertex.color", ANARI_ARRAY1D, &colorArray);
+            anariSetParameter(device, geometry, "primitive.index", ANARI_ARRAY1D, &indexArray);
+
+            if (useVertexNormals)
+            {
+                std::vector<std::array<float, 3>> normals;
+                for (const auto& v : verts) {
+                    normals.push_back({v.normal.x, v.normal.y, v.normal.z});
+                }
+
+                ANARIArray1D normalArray = makeManagedArray1D(
+                    device, ANARI_FLOAT32_VEC3, normals.data(), normals.size(), sizeof(normals[0])); 
+                anariSetParameter(device, geometry, "vertex.normal", ANARI_ARRAY1D, &normalArray);
+                anariRelease(device, normalArray);
+            }
+
+            if (useTexCoords)
+            {
+                std::vector<std::array<float, 2>> texCoords;
+                for (const auto& v : verts) {
+                    texCoords.push_back({v.texCoord.x, v.texCoord.y});
+                }
+
+                ANARIArray1D texCoordArray = makeManagedArray1D(
+                    device, ANARI_FLOAT32_VEC2, texCoords.data(), texCoords.size(), sizeof(texCoords[0])); 
+                anariSetParameter(device, geometry, "vertex.attribute0", ANARI_ARRAY1D, &texCoordArray);
+                anariRelease(device, texCoordArray);
+            }
+
+            anariRelease(device, positionArray);
+            anariRelease(device, colorArray);
+            anariRelease(device, indexArray);
+            anariCommitParameters(device, geometry);
+
+            // Blinn-Phong material from the .mtl entry (Kd/Ks/Ns); faces without
+            // a material get modest defaults. "phong" is a Phenocryst extension, so
+            // only use it when the device advertises it; otherwise use matte.
+            std::array<float, 3> kd{0.8f, 0.8f, 0.8f};
+            std::array<float, 3> ks{0.3f, 0.3f, 0.3f};
+            float shininess = 32.0f;
+            ANARISampler sampler{nullptr};
+            if (bucket.materialId >= 0 && static_cast<size_t>(bucket.materialId) < materials.size())
+            {
+                const auto& m = materials[bucket.materialId];
+                kd = {m.diffuse[0], m.diffuse[1], m.diffuse[2]};
+                ks = {m.specular[0], m.specular[1], m.specular[2]};
+                shininess = std::max(1.0f, m.shininess);
+                sampler = diffuseSampler(m);
+                if (sampler && !useTexCoords) {
+                    emitStatus(LogLevel::Warning,
+                            QStringLiteral("Material '%1' has a texture but shape '%2' has no "
+                                            "texcoords; using its diffuse color.")
+                                .arg(QString::fromStdString(m.name),
+                                        QString::fromStdString(shape.name)));
+                    sampler = nullptr;
+                }
+            }
+
+            ANARIMaterial material = usePhong ? anariNewMaterial(device, "phong") 
+                                            : anariNewMaterial(device, "matte");
+            if (material) 
+            {
+                if (sampler) 
+                {
+                    anariSetParameter(device, material, "color", ANARI_SAMPLER, &sampler);
+                } 
+                else 
+                {
+                    anariSetParameter(device, material, "color", ANARI_FLOAT32_VEC3, kd.data());
+                }
+
+                if (usePhong) 
+                {
+                    anariSetParameter(device, material, "specular", ANARI_FLOAT32_VEC3, ks.data());
+                    anariSetParameter(device, material, "shininess", ANARI_FLOAT32, &shininess);
+                }
+                anariCommitParameters(device, material);
+            }
+
+            ANARISurface surface = anariNewSurface(device);
+            if (!surface) 
+            {
+                anariRelease(device, geometry);
+                if (material) {
+                    anariRelease(device, material);
+                }
+                continue;
+            }
+            anariSetParameter(device, surface, "geometry", ANARI_GEOMETRY, &geometry);
+            if (material) {
+                anariSetParameter(device, surface, "material", ANARI_MATERIAL, &material);
+            }
+            anariCommitParameters(device, surface);
+
+            // The surface retains its own references to geometry/material; we can
+            // drop ours now and track only the surface for teardown.
             anariRelease(device, geometry);
             if (material) {
                 anariRelease(device, material);
             }
-            continue;
-        }
-        anariSetParameter(device, surface, "geometry", ANARI_GEOMETRY, &geometry);
-        if (material) {
-            anariSetParameter(device, surface, "material", ANARI_MATERIAL, &material);
-        }
-        anariCommitParameters(device, surface);
 
-        // The surface retains its own references to geometry/material; we can
-        // drop ours now and track only the surface for teardown.
-        anariRelease(device, geometry);
-        if (material) {
-            anariRelease(device, material);
+            scene.surfaces.push_back(surface);
+            totalVerts += verts.size();
+            totalTris += indices.size();
         }
-
-        scene.surfaces.push_back(surface);
-        totalVerts += verts.size();
-        totalTris += indices.size();
-      }
     }
 
-    // Each material that bound the sampler holds its own reference now, so drop
-    // ours. Released after the loop so a single sampler is shared by all.
-    if (sampler) {
-        anariRelease(device, sampler);
+    // Each material that bound a sampler holds its own reference now, so drop
+    // ours. Released after the loop so a sampler is shared by all its users.
+    for (auto& entry : samplers) 
+    {
+        if (entry.second) 
+        {
+            anariRelease(device, entry.second);
+        }
     }
 
-    if (scene.surfaces.empty()) {
+    if (scene.surfaces.empty()) 
+    {
         emitStatus(LogLevel::Warning,
                QStringLiteral("OBJ '%1' produced no triangles.").arg(m_filePath));
         // Clear the world's instance list so any prior scene is gone.

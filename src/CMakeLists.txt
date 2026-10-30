@@ -9,12 +9,9 @@ add_subdirectory(camera)
 add_subdirectory(renderer)
 add_subdirectory(ui)
 add_subdirectory(core)
-add_subdirectory(textures)
 add_subdirectory(loader)
 
 add_executable(${CMAKE_PROJECT_NAME} ${SRCS})
-
-add_dependencies(${CMAKE_PROJECT_NAME} texture_cpy)
 
 target_link_libraries(${CMAKE_PROJECT_NAME}
     PRIVATE

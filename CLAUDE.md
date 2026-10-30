@@ -31,10 +31,7 @@ ctest --test-dir build --output-on-failure
 ./build/tests/unit_tests --gtest_filter=<TestSuite.TestName>
 ```
 
-`textures/` is copied next to the executable at build time via the
-`texture_cpy` target — assets are loaded by path relative to
-`QCoreApplication::applicationDirPath()`, so running the binary from elsewhere
-will fail to find them. Models are no longer bundled: the user loads an OBJ
+No assets are bundled or copied next to the executable. The user loads an OBJ
 at runtime via **File → Open File...**, which calls
 `AnariRenderer::loadSceneFromFile`. That method delegates to a `DataLoader`
 chosen by `DataLoaderFactory` based on the file suffix (see `src/loader/`).
@@ -85,9 +82,12 @@ Module layout (each is an OBJECT library linked into the `Vitrine` executable):
   a Wavefront OBJ with tinyobjloader: each OBJ **shape** becomes its own ANARI
   triangle geometry (`vertex.position` / `.color`, plus `.normal` and
   `.attribute0` texcoords when present) + `matte` material + `ANARISurface`,
-  and all surfaces are attached to the world's `surface` array. It also loads
-  the bundled Viking Room PNG with stb_image and binds it to every material's
-  `color` through a single shared `image2D` `ANARISampler`. `DataLoaderFactory`
+  and all surfaces are attached to the world's `surface` array. A material's
+  `.mtl` `map_Kd` is decoded with stb_image (path resolved relative to the
+  `.mtl`, `\` normalised to `/`) and bound as `color` through an `image2D`
+  `ANARISampler`, shared by every material that uses the same image; without
+  `map_Kd` (or if it fails to load) `color` is the `Kd` vec3. Other maps are
+  ignored: Phenocryst's materials only take a `color` sampler. `DataLoaderFactory`
   maps a file suffix to a loader (`createLoader`) and advertises the
   open-dialog name filters (`fileFilters`, a `QStringList`). Loaders copy mesh
   and image data into device-managed ANARI arrays (`anariNewArray*` +
@@ -104,13 +104,6 @@ Module layout (each is an OBJECT library linked into the `Vitrine` executable):
     `LightConfigDialog`, `PreferencesDialog`.
   - **`overlays/`** — transparent widgets drawn over the frame:
     `SceneAxisOverlay`, `LightGizmoOverlay`.
-- **`src/textures/`** — Single-asset module (currently the Viking Room
-  texture) with a `texture_cpy` custom target the executable depends on.
-  `ObjDataLoader` loads `textures/viking_room.png` at runtime (relative to the
-  executable dir) and binds it to every loaded surface via an `image2D`
-  sampler — a temporary stand-in until the loader parses real materials from
-  the `.mtl`. Models are no longer bundled; OBJ geometry is loaded at runtime
-  via **File → Open File...**.
 - **`src/resources/`** — Qt `.qrc` resources: app icons under `images/`, and
   the embedded qdarkstyle stylesheets (dark + light) compiled in via AUTORCC.
 
@@ -176,10 +169,9 @@ offers supported types, and the renderer skips unsupported lights with a warning
   loop responsive: render kicks and completion polls return immediately,
   the only meaningful work the GUI thread does per frame is the
   pixel memcpy.
-- **Asset paths**: bundled assets resolve relative to
-  `QCoreApplication::applicationDirPath()` (e.g. `textures/...`). Mirror
-  `texture_cpy` for any new bundled assets. User-supplied models are loaded by
-  absolute path through **File → Open File...** and are not bundled.
+- **Asset paths**: nothing is bundled. User-supplied models are loaded by
+  absolute path through **File → Open File...**, and their textures resolve
+  relative to the model's `.mtl`.
 
 ## CMake custom find modules
 

@@ -22,7 +22,6 @@ target_include_directories(loader
         ${Qt6Core_INCLUDE_DIRS}
         ${Qt6Gui_INCLUDE_DIRS}
         ${Qt6Widgets_INCLUDE_DIRS}
-        ${stb_INCLUDE_DIRS}
         ${tinyobjloader_INCLUDE_DIRS}
         ${glm_INCLUDE_DIRS}
 )

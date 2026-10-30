@@ -102,7 +102,7 @@ the dialog is designed to grow — additional preferences are added as new rows.
 
 ## Loading models
 
-Use **File → Open File...** to load a model at runtime. A `DataLoaderFactory` selects a loader based on the file suffix (the dialog's filters come from the same factory); unsupported types are logged and ignored. Today a single Wavefront OBJ loader is implemented: each OBJ shape becomes its own ANARI triangle-geometry surface with a `matte` material. As a temporary stand-in for real `.mtl` material parsing, every loaded surface is textured with the bundled Viking Room image via an ANARI `image2D` sampler.
+Use **File → Open File...** to load a model at runtime. A `DataLoaderFactory` selects a loader based on the file suffix (the dialog's filters come from the same factory); unsupported types are logged and ignored. Today a single Wavefront OBJ loader is implemented: each OBJ shape becomes its own ANARI triangle-geometry surface with a `matte` material. Materials come from the `.mtl` (`Kd`/`Ks`/`Ns`), and a `map_Kd` diffuse texture, resolved relative to the `.mtl`, is bound through an ANARI `image2D` sampler.
 
 ## Build and run tests (optional)
 

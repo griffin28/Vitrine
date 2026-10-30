@@ -300,6 +300,27 @@ namespace AnariUtils
                                     const void* data,
                                     size_t count,
                                     size_t elemSize);
-} // namespace AnariUtils
 
+    /// @brief Create a device-managed 2D ANARI array and copy data into it
+    /// @param device ANARI device that owns the array
+    /// @param type ANARI element type
+    /// @param data source elements; copied, so it need not outlive the array
+    /// @param width number of elements in the width dimension
+    /// @param height number of elements in the height dimension
+    /// @param elemSize size of one element in bytes
+    /// @return new array handle (caller releases), or nullptr on failure
+    ANARIArray2D makeManagedArray2D(ANARIDevice device, 
+                                    ANARIDataType type,
+                                    const void* data, 
+                                    size_t width, size_t height,
+                                    size_t elemSize);
+
+    /// @brief Create an image sampler for a given image file
+    /// @param device ANARI device that owns the sampler
+    /// @param path path to the image file
+    /// @param clamp true to clamp the sampler to the edge, false to repeat
+    /// @return new sampler handle (caller releases), or nullptr on failure
+    ANARISampler makeImageSampler(ANARIDevice device, const std::string& path, bool clamp);
+
+} // namespace AnariUtils
 } // namespace vitrine

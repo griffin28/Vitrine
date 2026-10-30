@@ -18,6 +18,7 @@ target_include_directories(core
         ${Qt6Core_INCLUDE_DIRS}
         ${Qt6Gui_INCLUDE_DIRS}
         ${Qt6Widgets_INCLUDE_DIRS}
+        ${stb_INCLUDE_DIRS}
 )
 
 target_link_libraries(core

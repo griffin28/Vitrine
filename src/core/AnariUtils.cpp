@@ -2,6 +2,9 @@
 
 #include <anari/anari.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
 #include <QByteArray>
 #include <QDir>
 #include <QFileInfo>
@@ -310,6 +313,58 @@ ANARIArray1D makeManagedArray1D(ANARIDevice device,
         anariUnmapArray(device, array);
     }
     return array;
+}
+
+ANARIArray2D makeManagedArray2D(ANARIDevice device, ANARIDataType type,
+                                const void* data, 
+                                size_t width, size_t height,
+                                size_t elemSize)
+{
+    ANARIArray2D array = anariNewArray2D(device, nullptr, nullptr, nullptr, type, width, height);
+    if (array && width > 0 && height > 0) 
+    {
+        if (void* mapped = anariMapArray(device, array)) 
+        {
+            std::memcpy(mapped, data, width * height * elemSize);
+        }
+        anariUnmapArray(device, array);
+    }
+    return array;
+}
+
+ANARISampler makeImageSampler(ANARIDevice device, const std::string& path, bool clamp)
+{
+    int width = 0;
+    int height = 0;
+    int channels = 0;
+    stbi_uc* pixels = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+    if (!pixels) {
+        return nullptr;
+    }
+
+    ANARISampler sampler = anariNewSampler(device, "image2D");
+    if (!sampler) {
+        stbi_image_free(pixels);
+        return nullptr;
+    }
+
+    ANARIArray2D imageArray = makeManagedArray2D(
+        device, ANARI_UFIXED8_VEC4, pixels,
+        static_cast<size_t>(width), static_cast<size_t>(height), 4);
+    // The pixels were copied into the device-managed array.
+    stbi_image_free(pixels);
+    anariSetParameter(device, sampler, "image", ANARI_ARRAY2D, &imageArray);
+    anariRelease(device, imageArray);
+
+    const char* inAttribute = "attribute0";
+    const char* wrapMode = clamp ? "clampToEdge" : "repeat";
+    const char* filter = "linear";
+    anariSetParameter(device, sampler, "inAttribute", ANARI_STRING, inAttribute);
+    anariSetParameter(device, sampler, "wrapMode1", ANARI_STRING, wrapMode);
+    anariSetParameter(device, sampler, "wrapMode2", ANARI_STRING, wrapMode);
+    anariSetParameter(device, sampler, "filter", ANARI_STRING, filter);
+    anariCommitParameters(device, sampler);
+    return sampler;
 }
 
 } // namespace AnariUtils
