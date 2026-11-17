@@ -36,6 +36,25 @@ public:
     /// @brief Destructor
     ~LightGizmoOverlay() override = default;
 
+    /// @brief Convert a glm::vec3 to a QVector3D
+    /// @param v glm::vec3
+    /// @return QVector3D
+    inline static QVector3D toQt(const glm::vec3& v)
+    {
+        return QVector3D(v.x, v.y, v.z);
+    }
+
+    /// @brief Convert a glm::vec3 to a QColor
+    /// @param c glm::vec3
+    /// @return QColor
+    inline static QColor toQColor(const glm::vec3& c)
+    {
+        const auto ch = [](float v) { 
+            return std::clamp(static_cast<int>(v * 255.0f + 0.5f), 0, 255); 
+        };
+        return QColor(ch(c.x), ch(c.y), ch(c.z));
+    }
+
     /// @brief Pixel radius of the point/spot light marker
     static constexpr qreal kMarkerRadius = 6.0;
 

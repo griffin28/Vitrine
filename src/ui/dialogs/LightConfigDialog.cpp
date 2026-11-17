@@ -112,6 +112,12 @@ LightConfigDialog::LightConfigDialog(const std::vector<LightConfig>& initial,
     m_intensitySpin->setSingleStep(0.1);
     m_form->addRow(tr("Intensity: "), m_intensitySpin);
 
+    m_radiusSpin = new QDoubleSpinBox(m_formWidget);
+    m_radiusSpin->setDecimals(3);
+    m_radiusSpin->setRange(0.0, 1.0e6);
+    m_radiusSpin->setSingleStep(0.05);
+    m_form->addRow(tr("Radius: "), m_radiusSpin);
+
     m_openingSpin = new QDoubleSpinBox(m_formWidget);
     m_openingSpin->setRange(1.0, 179.0);
     m_openingSpin->setSuffix(QStringLiteral("°"));
@@ -135,7 +141,7 @@ LightConfigDialog::LightConfigDialog(const std::vector<LightConfig>& initial,
     connect(m_colorButton, &QPushButton::clicked, this, &LightConfigDialog::pickColor);
     connect(m_enabledCheck, &QCheckBox::toggled, this, &LightConfigDialog::onFieldEdited);
     connect(m_typeCombo, &QComboBox::currentIndexChanged, this, &LightConfigDialog::onFieldEdited);
-    for (auto* spin : {m_intensitySpin, m_openingSpin, m_falloffSpin}) 
+    for (auto* spin : {m_intensitySpin, m_radiusSpin, m_openingSpin, m_falloffSpin}) 
     {
         connect(spin, &QDoubleSpinBox::valueChanged, this, &LightConfigDialog::onFieldEdited);
     }
@@ -240,6 +246,7 @@ void LightConfigDialog::updateRowVisibility(LightType type)
     const bool spot = type == LightType::Spot;
     m_form->setRowVisible(m_positionRow, type != LightType::Directional);
     m_form->setRowVisible(m_directionRow, type != LightType::Point);
+    m_form->setRowVisible(m_radiusSpin, type == LightType::Point);
     m_form->setRowVisible(m_openingSpin, spot);
     m_form->setRowVisible(m_falloffSpin, spot);
     m_intensitySpin->setToolTip(type == LightType::Directional
@@ -312,6 +319,7 @@ void LightConfigDialog::onRowChanged(int row)
     writeVec3(m_position, l.position);
     writeVec3(m_direction, l.direction);
     m_intensitySpin->setValue(l.intensity);
+    m_radiusSpin->setValue(l.radius);
     m_openingSpin->setValue(l.openingAngleDegrees);
     m_falloffSpin->setValue(l.falloffAngleDegrees);
     m_loading = false;
@@ -332,6 +340,7 @@ void LightConfigDialog::onFieldEdited()
     l.position = readVec3(m_position);
     l.direction = readVec3(m_direction);
     l.intensity = static_cast<float>(m_intensitySpin->value());
+    l.radius = static_cast<float>(m_radiusSpin->value());
     l.openingAngleDegrees = static_cast<float>(m_openingSpin->value());
     l.falloffAngleDegrees = std::min(static_cast<float>(m_falloffSpin->value()), l.openingAngleDegrees);
 

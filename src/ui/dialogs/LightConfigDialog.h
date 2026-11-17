@@ -126,6 +126,7 @@ private:
     Vec3Editor m_position{};
     Vec3Editor m_direction{};
     QDoubleSpinBox* m_intensitySpin{nullptr};
+    QDoubleSpinBox* m_radiusSpin{nullptr};
     QDoubleSpinBox* m_openingSpin{nullptr};
     QDoubleSpinBox* m_falloffSpin{nullptr};
 };

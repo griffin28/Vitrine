@@ -118,6 +118,10 @@ single directional light. `Anari → Lights...` opens `LightConfigDialog`; the
 list persists under `AppMainWindow/anari/lights` (array) in `QSettings`.
 `LightGizmoOverlay` (child of the frame widget, toggled by Preferences →
 Show Light Gizmos) draws each light using `AnariRenderer::cameraMatricesChanged`.
+Point lights carry a world-space `radius` (sent as the ANARI `radius` parameter, 0 = ideal point);
+the point-light gizmo reuses the value as an on-screen *pixel* radius for its disc
+(no marker is drawn when it is 0), while the spot cone rim is a camera-facing
+(view-aligned) circle.
 Light types are gated on the backend's `ANARI_KHR_LIGHT_{DIRECTIONAL,POINT,SPOT}`
 device extensions (`AnariRenderer::supportedLightTypes()`): the dialog only
 offers supported types, and the renderer skips unsupported lights with a warning.

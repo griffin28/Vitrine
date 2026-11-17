@@ -485,7 +485,12 @@ void AnariRenderer::rebuildLights()
             const auto pos = toArray(cfg.position);
             anariSetParameter(m_device, light, "position", ANARI_FLOAT32_VEC3, pos.data());
             anariSetParameter(m_device, light, "intensity", ANARI_FLOAT32, &cfg.intensity);
-            if (cfg.type == LightType::Spot) 
+            if (cfg.type == LightType::Point) 
+            {
+                const float radius = std::max(cfg.radius, 0.0f);
+                anariSetParameter(m_device, light, "radius", ANARI_FLOAT32, &radius);
+            }
+            else if (cfg.type == LightType::Spot) 
             {
                 const auto dir = toArray(unit(cfg.direction));
                 const float opening = glm::radians(cfg.openingAngleDegrees);

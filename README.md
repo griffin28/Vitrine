@@ -93,11 +93,30 @@ projection parameters. `PerspectiveCamera` (subtype `perspective`, `fovy`) and
 base/derived split means an additional projection needs only a new `Camera`
 subclass plus one dialog entry — the manipulation and UI code are untouched.
 
+## Lights
+
+**Anari → Lights...** opens a dialog for adding, removing and editing scene
+lights. Three types are offered, each gated on the backend advertising the
+matching `ANARI_KHR_LIGHT_*` extension:
+
+- **Directional** — color, direction, irradiance (W/m²).
+- **Point** — color, position, intensity (W/sr) and a world-space **radius**
+  (0 = ideal point light; sent to the backend as the ANARI `radius` parameter).
+- **Spot** — color, position, direction, intensity (W/sr), opening angle and
+  falloff angle.
+
+The light list is persisted via `QSettings` and re-applied on launch. When
+**Show Light Gizmos** is enabled in the preferences, each light is drawn over
+the render: directional lights as an arrow of travel, point lights as a filled
+disc with rays around it (the disc is drawn with the light's `radius` value as
+its on-screen pixel radius, and is omitted when the radius is 0), and spot
+lights as a marker with an axis and a camera-facing circle at the cone rim.
+
 ## Preferences
 
 **Edit → Preferences...** opens the preferences dialog where user-facing
-options are edited. The first preference toggles the camera axis-overlay gizmo
-on or off. Preferences are persisted via `QSettings` and re-applied on launch;
+options are edited. Preferences toggle the camera axis-overlay gizmo and the
+light gizmos on or off. Preferences are persisted via `QSettings` and re-applied on launch;
 the dialog is designed to grow — additional preferences are added as new rows.
 
 ## Loading models

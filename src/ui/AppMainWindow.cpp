@@ -142,6 +142,7 @@ void AppMainWindow::loadSettings()
                            settings.value("dirY", l.direction.y).toFloat(),
                            settings.value("dirZ", l.direction.z).toFloat()};
             l.intensity = settings.value("intensity", l.intensity).toFloat();
+            l.radius = settings.value("radius", l.radius).toFloat();
             l.openingAngleDegrees = settings.value("opening", l.openingAngleDegrees).toFloat();
             l.falloffAngleDegrees = settings.value("falloff", l.falloffAngleDegrees).toFloat();
             m_lightConfigs.push_back(l);
@@ -211,6 +212,7 @@ void AppMainWindow::saveSettings()
         settings.setValue("dirY", l.direction.y);
         settings.setValue("dirZ", l.direction.z);
         settings.setValue("intensity", l.intensity);
+        settings.setValue("radius", l.radius);
         settings.setValue("opening", l.openingAngleDegrees);
         settings.setValue("falloff", l.falloffAngleDegrees);
     }
@@ -400,13 +402,16 @@ void AppMainWindow::createActions()
         tr("&Rendering..."), this);
     connect(m_renderingOptionsAction, &QAction::triggered, this, &AppMainWindow::showRenderingOptionsDialog);
 
+    // m_cameraOptionsAction = new QAction(
+    //     menuIcon(QStringLiteral(":/qdarkstyle/dark/rc/arrow_down.png"), QString(), QStyle::SP_ComputerIcon),
+    //     tr("&Camera..."), this);
     m_cameraOptionsAction = new QAction(
-        menuIcon(QString(), QStringLiteral("camera-photo"), QStyle::SP_FileDialogContentsView),
+        menuIcon(QStringLiteral(":/images/camera.png"), QString(), QStyle::SP_ComputerIcon),
         tr("&Camera..."), this);
     connect(m_cameraOptionsAction, &QAction::triggered, this, &AppMainWindow::showCameraOptionsDialog);
 
     m_lightOptionsAction = new QAction(
-        menuIcon(QString(), QStringLiteral("weather-clear"), QStyle::SP_MessageBoxInformation),
+        menuIcon(QStringLiteral(":/images/lightbulb.png"), QString(), QStyle::SP_MessageBoxInformation),
         tr("&Lights..."), this);
     connect(m_lightOptionsAction, &QAction::triggered, this, &AppMainWindow::showLightOptionsDialog);
 }

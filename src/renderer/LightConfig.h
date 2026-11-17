@@ -31,6 +31,7 @@ struct LightConfig
     glm::vec3 color{1.0f, 1.0f, 1.0f};
 
     glm::vec3 position{0.0f, 2.0f, 2.0f};     // point, spot
+    float radius{0.0f};                       // point: world-space radius (0 = ideal point light)
     glm::vec3 direction{-1.0f, -1.0f, -1.0f}; // directional, spot: direction of travel
 
     /// Directional: irradiance (W/m^2). Point / spot: intensity (W/sr).
