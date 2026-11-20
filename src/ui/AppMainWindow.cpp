@@ -403,7 +403,7 @@ void AppMainWindow::createActions()
     connect(m_renderingOptionsAction, &QAction::triggered, this, &AppMainWindow::showRenderingOptionsDialog);
 
     // m_cameraOptionsAction = new QAction(
-    //     menuIcon(QStringLiteral(":/qdarkstyle/dark/rc/arrow_down.png"), QString(), QStyle::SP_ComputerIcon),
+    //     menuIcon(QStringLiteral(":/qss_icons/dark/rc/arrow_down.png"), QString(), QStyle::SP_ComputerIcon),
     //     tr("&Camera..."), this);
     m_cameraOptionsAction = new QAction(
         menuIcon(QStringLiteral(":/images/camera.png"), QString(), QStyle::SP_ComputerIcon),

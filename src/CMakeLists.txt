@@ -1,8 +1,8 @@
 set (SRCS
     main.cpp
     resources/resources.qrc
-    resources/style/qdarkstyle/dark/darkstyle.qrc
-    resources/style/qdarkstyle/light/lightstyle.qrc
+    resources/style/qss_icons/dark/darkstyle.qrc
+    resources/style/qss_icons/light/lightstyle.qrc
 )
 
 add_subdirectory(camera)

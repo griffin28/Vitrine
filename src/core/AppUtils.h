@@ -37,7 +37,7 @@ public:
     /// @param app the QApplication instance to apply the dark mode to
     static inline void applyDarkMode(QApplication &app)
     {
-        QFile styleFile(":/qdarkstyle/dark/darkstyle.qss");
+        QFile styleFile(":/qss_icons/dark/darkstyle.qss");
 
         if (!styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
             return;
@@ -51,7 +51,7 @@ public:
     /// @param app the QApplication instance to apply the light mode to
     static inline void applyLightMode(QApplication &app)
     {
-        QFile styleFile(":/qdarkstyle/light/lightstyle.qss");
+        QFile styleFile(":/qss_icons/light/lightstyle.qss");
 
         if (!styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
             return;

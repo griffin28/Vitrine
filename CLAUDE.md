@@ -105,7 +105,7 @@ Module layout (each is an OBJECT library linked into the `Vitrine` executable):
   - **`overlays/`** — transparent widgets drawn over the frame:
     `SceneAxisOverlay`, `LightGizmoOverlay`.
 - **`src/resources/`** — Qt `.qrc` resources: app icons under `images/`, and
-  the embedded qdarkstyle stylesheets (dark + light) compiled in via AUTORCC.
+  the embedded qdarkstyle-based stylesheets (dark + light) under `style/qss_icons/`, compiled in via AUTORCC (resource prefix `:/qss_icons/{dark,light}/`).
 
 ### Lights
 
